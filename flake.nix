@@ -1,5 +1,5 @@
 {
-  description = "ghostty-web - Web terminal using Ghostty's VT100 parser via WASM";
+  description = "crafter-terminal - Web terminal using Ghostty's VT100 parser via WASM (fork of coder/ghostty-web)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -25,8 +25,8 @@
         };
 
         packages.default = pkgs.stdenv.mkDerivation {
-          pname = "ghostty-web";
-          version = "0.4.0"; # x-release-please-version
+          pname = "crafter-terminal";
+          version = "0.1.0";
 
           src = ./.;
 

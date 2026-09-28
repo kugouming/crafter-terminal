@@ -51,7 +51,7 @@ function generateCursorMovement(ops: number): string {
 
 const withTerminals = async (fn: (term: GhosttyTerminal | XTerm) => Promise<void>) => {
   const ghostty = await Ghostty.load();
-  bench('ghostty-web', async () => {
+  bench('crafter-terminal', async () => {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const term = new GhosttyTerminal({ ghostty });

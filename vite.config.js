@@ -4,7 +4,6 @@ import dts from 'vite-plugin-dts';
 export default defineConfig({
   server: {
     port: 8000,
-    allowedHosts: ['.coder'],
   },
   plugins: [
     dts({
@@ -17,9 +16,9 @@ export default defineConfig({
   build: {
     lib: {
       entry: 'lib/index.ts',
-      name: 'GhosttyWeb',
+      name: 'CrafterTerminal',
       fileName: (format) => {
-        return format === 'es' ? 'ghostty-web.js' : 'ghostty-web.umd.cjs';
+        return format === 'es' ? 'crafter-terminal.js' : 'crafter-terminal.umd.cjs';
       },
       formats: ['es', 'umd'],
     },

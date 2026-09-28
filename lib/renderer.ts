@@ -303,7 +303,7 @@ export class CanvasRenderer {
     const monospace = isMonospaceFont(this.fontFamily, this.fontSize * this.devicePixelRatio);
     if (monospace === false) {
       console.warn(
-        `ghostty-web: "${this.fontFamily}" is not available as a monospace font in this ` +
+        `crafter-terminal: "${this.fontFamily}" is not available as a monospace font in this ` +
           `browser (is it installed?); falling back to the default monospace stack`
       );
       this.fontFamily = DEFAULT_FONT_FAMILY;
@@ -323,7 +323,7 @@ export class CanvasRenderer {
     if (!face) return undefined;
 
     if (!face.family) {
-      console.warn('ghostty-web: fontMetrics has no family, ignoring the pinned metrics');
+      console.warn('crafter-terminal: fontMetrics has no family, ignoring the pinned metrics');
       return undefined;
     }
 
@@ -334,7 +334,7 @@ export class CanvasRenderer {
     }
 
     console.warn(
-      `ghostty-web: pinned metrics are for "${face.family}" but "${resolved ?? this.fontFamily}" ` +
+      `crafter-terminal: pinned metrics are for "${face.family}" but "${resolved ?? this.fontFamily}" ` +
         'resolves first; measuring the font instead'
     );
     return undefined;

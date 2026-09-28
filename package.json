@@ -1,28 +1,31 @@
 {
-  "name": "ghostty-web",
-  "version": "0.4.0",
-  "description": "Web-based terminal emulator using Ghostty's VT100 parser via WebAssembly",
+  "name": "crafter-terminal",
+  "version": "0.1.0",
+  "description": "Web-based terminal emulator using Ghostty's VT100 parser via WebAssembly (fork of coder/ghostty-web)",
   "type": "module",
-  "main": "./dist/ghostty-web.umd.cjs",
-  "module": "./dist/ghostty-web.js",
+  "main": "./dist/crafter-terminal.umd.cjs",
+  "module": "./dist/crafter-terminal.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/ghostty-web.js",
-      "require": "./dist/ghostty-web.umd.cjs"
+      "import": "./dist/crafter-terminal.js",
+      "require": "./dist/crafter-terminal.umd.cjs"
     },
     "./ghostty-vt.wasm": "./ghostty-vt.wasm"
   },
   "files": [
     "dist",
     "ghostty-vt.wasm",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "keywords": [
     "terminal",
     "terminal-emulator",
     "ghostty",
+    "crafter",
     "web",
     "xterm",
     "vt100",
@@ -33,20 +36,19 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/coder/ghostty-web.git"
+    "url": "git+https://github.com/kugouming/crafter-terminal.git"
   },
-  "bugs": "https://github.com/coder/ghostty-web/issues",
-  "homepage": "https://github.com/coder/ghostty-web#readme",
+  "bugs": "https://github.com/kugouming/crafter-terminal/issues",
+  "homepage": "https://github.com/kugouming/crafter-terminal#readme",
   "license": "MIT",
-  "author": "Coder",
-  "publishConfig": {
-    "access": "public"
-  },
+  "author": "kugouming",
+  "contributors": [
+    "Coder (https://github.com/coder) - original ghostty-web project"
+  ],
   "scripts": {
     "dev": "vite --port 8000",
     "demo": "node demo/bin/demo.js",
     "demo:dev": "node demo/bin/demo.js --dev",
-    "prebuild": "bun install",
     "build": "bun run clean && bun run build:wasm && bun run build:lib && bun run build:wasm-copy",
     "build:wasm": "./scripts/build-wasm.sh",
     "build:font-metrics": "python3 scripts/build-font-metrics.py demo/fonts/MapleMono-Regular.woff2 --family \"Maple Mono\" -o demo/fonts/MapleMono-metrics.json",
@@ -60,7 +62,8 @@
     "fmt:fix": "prettier --write --cache .",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "bun run build",
+    "prepack": "node scripts/verify-package.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

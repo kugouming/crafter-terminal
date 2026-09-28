@@ -575,7 +575,7 @@ export function isFontAvailable(
   if (!ctx) return null;
 
   const sample = 'mmmmmmmmmmlliWWWWWWWWWW0123456789';
-  ctx.font = `${px}px "__ghostty_web_missing_font__"`;
+  ctx.font = `${px}px "__crafter_missing_font__"`;
   const missing = ctx.measureText(sample).width;
   ctx.font = `${px}px ${fontFamily}`;
   const actual = ctx.measureText(sample).width;
