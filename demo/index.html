@@ -228,7 +228,7 @@
           if (!response.ok) return undefined;
           return await response.json();
         } catch (error) {
-          console.warn('ghostty-web: could not load the bundled font metrics', error);
+          console.warn('crafter-terminal: could not load the bundled font metrics', error);
           return undefined;
         }
       }
@@ -245,7 +245,7 @@
           if (!response.ok) return {};
           const payload = await response.json();
           if (!payload.available) {
-            console.info('ghostty-web: no Ghostty config found, using Ghostty defaults');
+            console.info('crafter-terminal: no Ghostty config found, using Ghostty defaults');
             return {};
           }
 
@@ -274,9 +274,9 @@
           }
 
           const { options, warnings } = toTerminalOptions(config, { themeText: payload.themeText });
-          for (const warning of warnings) console.warn('ghostty-web:', warning);
+          for (const warning of warnings) console.warn('crafter-terminal:', warning);
           console.info(
-            'ghostty-web: using',
+            'crafter-terminal: using',
             local ? 'your Ghostty config (on top of the bundled defaults)' : 'the bundled config',
             payload.themeName ? `(theme: ${payload.themeName})` : ''
           );
@@ -286,14 +286,14 @@
           const primary = local?.fontFamily[0];
           if (primary && isFontAvailable(primary, config.fontSize ?? 14) === false) {
             console.warn(
-              `ghostty-web: font "${primary}" is not installed for this browser; ` +
+              `crafter-terminal: font "${primary}" is not installed for this browser; ` +
                 `rendering with the bundled "${BUNDLED_FONT_FAMILY}" instead`
             );
           }
 
           return { options, padding: config.windowPaddingX, paddingY: config.windowPaddingY };
         } catch (error) {
-          console.warn('ghostty-web: could not load Ghostty config', error);
+          console.warn('crafter-terminal: could not load Ghostty config', error);
           return {};
         }
       }
@@ -309,7 +309,7 @@
             document.fonts.load(`italic 700 14px "${BUNDLED_FONT_FAMILY}"`),
           ]);
         } catch (error) {
-          console.warn('ghostty-web: could not load the bundled font', error);
+          console.warn('crafter-terminal: could not load the bundled font', error);
         }
       }
 

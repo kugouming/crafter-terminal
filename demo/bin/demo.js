@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * @ghostty-web/demo - Cross-platform demo server
+ * crafter-terminal-demo - Cross-platform demo server
  *
  * Starts a local HTTP server with WebSocket PTY support.
- * Run with: npx @ghostty-web/demo
+ * Run with: npx crafter-terminal-demo
  */
 
 import fs from 'fs';
@@ -43,7 +43,7 @@ function parsePort(value) {
 }
 
 // ============================================================================
-// Locate ghostty-web assets
+// Locate crafter-terminal assets
 // ============================================================================
 
 import { createRequire } from 'module';
@@ -64,29 +64,29 @@ function findGhosttyWeb() {
 
   // First, check for local development (repo root dist/)
   const localDist = path.join(__dirname, '..', '..', 'dist');
-  const localJs = path.join(localDist, 'ghostty-web.js');
+  const localJs = path.join(localDist, 'crafter-terminal.js');
   const localWasm = path.join(__dirname, '..', '..', 'ghostty-vt.wasm');
 
   if (fs.existsSync(localJs) && fs.existsSync(localWasm)) {
     return { distPath: localDist, wasmPath: localWasm, repoRoot: path.join(__dirname, '..', '..') };
   }
 
-  // Use require.resolve to find the installed ghostty-web package
+  // Use require.resolve to find the installed crafter-terminal package
   try {
-    const ghosttyWebMain = require.resolve('ghostty-web');
+    const ghosttyWebMain = require.resolve('crafter-terminal');
     // Strip dist/... from path to get package root (regex already gives us the root)
     const ghosttyWebRoot = ghosttyWebMain.replace(/[/\\]dist[/\\].*$/, '');
     const distPath = path.join(ghosttyWebRoot, 'dist');
     const wasmPath = path.join(ghosttyWebRoot, 'ghostty-vt.wasm');
 
-    if (fs.existsSync(path.join(distPath, 'ghostty-web.js')) && fs.existsSync(wasmPath)) {
+    if (fs.existsSync(path.join(distPath, 'crafter-terminal.js')) && fs.existsSync(wasmPath)) {
       return { distPath, wasmPath, repoRoot: null };
     }
   } catch (e) {
     // require.resolve failed, package not found
   }
 
-  console.error('Error: Could not find ghostty-web package.');
+  console.error('Error: Could not find crafter-terminal package.');
   console.error('');
   console.error('If developing locally, run: bun run build');
   console.error('If using npx, the package should install automatically.');
@@ -293,7 +293,7 @@ const HTML_TEMPLATE = `<!doctype html>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ghostty-web</title>
+    <title>crafter</title>
     <style>
       /*
        * Maple Mono, bundled with the demo so the terminal renders the same
@@ -469,7 +469,7 @@ const HTML_TEMPLATE = `<!doctype html>
           <div class="light yellow"></div>
           <div class="light green"></div>
         </div>
-        <span class="title">ghostty-web</span>
+        <span class="title">crafter</span>
         <div class="connection-status">
           <div class="status-dot connecting" id="status-dot"></div>
           <span id="status-text">Connecting...</span>
@@ -488,7 +488,7 @@ const HTML_TEMPLATE = `<!doctype html>
         parseGhosttyConfig,
         mergeGhosttyConfigs,
         toTerminalOptions,
-      } from '/dist/ghostty-web.js';
+      } from '/dist/crafter-terminal.js';
 
       // Maple Mono, bundled with the demo (see fonts/, SIL OFL 1.1) so the
       // glyphs and cell metrics don't depend on what is installed locally.
@@ -507,7 +507,7 @@ const HTML_TEMPLATE = `<!doctype html>
             document.fonts.load('italic 700 14px "' + BUNDLED_FONT_FAMILY + '"'),
           ]);
         } catch (error) {
-          console.warn('ghostty-web: could not load the bundled font', error);
+          console.warn('crafter-terminal: could not load the bundled font', error);
         }
       }
       await loadBundledFonts();
@@ -525,7 +525,7 @@ const HTML_TEMPLATE = `<!doctype html>
           if (!response.ok) return undefined;
           return await response.json();
         } catch (error) {
-          console.warn('ghostty-web: could not load the bundled font metrics', error);
+          console.warn('crafter-terminal: could not load the bundled font metrics', error);
           return undefined;
         }
       }
@@ -580,7 +580,7 @@ const HTML_TEMPLATE = `<!doctype html>
                 ? 'Using your Ghostty config' +
                   (payload.themeName ? ' (' + payload.themeName + ')' : '')
                 : 'Using the bundled demo config';
-              for (const warning of warnings) console.warn('ghostty-web:', warning);
+              for (const warning of warnings) console.warn('crafter-terminal:', warning);
 
               // The renderer falls back when the configured font is missing;
               // tell the user why the glyphs differ.
@@ -589,7 +589,7 @@ const HTML_TEMPLATE = `<!doctype html>
                 configNotice =
                   'Font not installed: ' + primary + ' (using ' + BUNDLED_FONT_FAMILY + ')';
                 console.warn(
-                  'ghostty-web: font "' +
+                  'crafter-terminal: font "' +
                     primary +
                     '" is not installed for this browser; rendering with the bundled "' +
                     BUNDLED_FONT_FAMILY +
@@ -602,7 +602,7 @@ const HTML_TEMPLATE = `<!doctype html>
           }
         }
       } catch (error) {
-        console.warn('ghostty-web: could not load Ghostty config', error);
+        console.warn('crafter-terminal: could not load Ghostty config', error);
       }
 
       const fontMetrics = await loadBundledFontMetrics();
@@ -1113,7 +1113,7 @@ function formatUrlHost(host) {
 
 function printBanner(url) {
   console.log('\n' + '═'.repeat(60));
-  console.log('  🚀 ghostty-web demo server' + (DEV_MODE ? ' (dev mode)' : ''));
+  console.log('  🚀 crafter-terminal demo server' + (DEV_MODE ? ' (dev mode)' : ''));
   console.log('═'.repeat(60));
   console.log(`\n  📺 Open: ${url}`);
   console.log(`  📡 WebSocket PTY: same endpoint /ws`);
