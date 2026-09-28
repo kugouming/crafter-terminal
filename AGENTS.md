@@ -79,6 +79,9 @@ Ghostty WASM Bridge (lib/ghostty.ts)
 | `lib/terminal.ts`           | 427   | Main Terminal class, xterm.js API   |
 | `lib/ghostty.ts`            | 552   | WASM bridge, memory management      |
 | `lib/renderer.ts`           | 610   | Canvas renderer with font metrics   |
+| `lib/metrics.ts`            | 330   | Ghostty-parity font metrics         |
+| `lib/sprites.ts`            | 320   | Box-drawing / block-element sprites |
+| `lib/ghostty-config.ts`     | 560   | Native Ghostty config → options     |
 | `lib/input-handler.ts`      | 438   | Keyboard → escape sequences         |
 | `lib/selection-manager.ts`  | 442   | Text selection + clipboard          |
 | `lib/types.ts`              | 454   | TypeScript definitions for WASM ABI |
@@ -306,6 +309,40 @@ describe('MyFeature', () => {
 - Use `term.wasmTerm` to access WASM API directly
 
 ## Critical Gotchas
+
+### 0. **Ghostty Parity Rules (read before touching rendering)**
+
+The goal is that a web terminal renders identically to the native Ghostty app.
+Three invariants keep it that way:
+
+1. **Defaults must match Ghostty's defaults** — `GHOSTTY_DEFAULT_THEME` in
+   `lib/renderer.ts` is Ghostty's built-in theme (`background = #282c34`,
+   `foreground = #ffffff`, Tomorrow Night palette). Font size defaults to 13 on
+   macOS and 12 elsewhere, and the cursor blinks by default. When changing a
+   default, check `src/config/Config.zig` upstream first.
+
+2. **Metrics must follow Ghostty's algorithm** (`lib/metrics.ts`, ported from
+   `src/font/Metrics.zig`): cell width is the rounded max ASCII advance, cell
+   height is the rounded font line height (ascent + descent + line gap), the
+   baseline is measured from the bottom of the cell, and `adjust-*` deltas are
+   applied in _device_ pixels. Do not go back to measuring the `'M'` glyph
+   bounding box — that makes rows ~20% too short and breaks TUI layouts.
+
+   When exactness across browsers matters, pass `fontMetrics` (a `FaceMetrics`
+   read from the font's tables by `scripts/build-font-metrics.py`). It skips
+   browser measurement entirely; the renderer ignores it when the pinned family
+   is not the one that resolves. The demo does this with
+   `demo/fonts/MapleMono-metrics.json`.
+
+3. **The WASM and the renderer must agree on colors.** `buildWasmConfig()` sends
+   the merged theme to the WASM, which resolves default cell colors from it.
+   The renderer skips painting cells whose background equals the theme
+   background, so if the two disagree you get visible seams.
+
+Box-drawing and block characters are drawn as sprites (`lib/sprites.ts`, ported
+from `src/font/sprite/draw/{box,block}.zig`) rather than with font glyphs,
+because font glyphs don't fill the cell when the cell height differs from the
+font's default line height.
 
 ### 1. **Must Use Vite Dev Server**
 

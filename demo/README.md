@@ -19,6 +19,37 @@ Works on **Linux** and **macOS** (no Windows support yet).
 - Rejects cross-origin WebSocket handshakes
 - Opens a real shell session (bash, zsh, etc.)
 - Provides full PTY support (colors, cursor positioning, resize, etc.)
+- Renders with the same font and theme everywhere (see below)
+- Hides the native page scrollbar and shows a faint indicator only while scrolling
+
+## Appearance
+
+The demo's appearance is pinned by this package rather than by the machine it
+runs on:
+
+- `ghostty.config` — a regular Ghostty config (Catppuccin Mocha palette on the
+  demo's original `#1e1e1e` background, Maple Mono 14, bar cursor, 10/8 window
+  padding) that the demo applies by default. Parsed by the library's
+  `parseGhosttyConfig`.
+- `fonts/` — [Maple Mono](https://github.com/subframe7536/maple-font) regular,
+  bold, italic and bold-italic as woff2 (~320 KB total), loaded with
+  `@font-face` and served from `/fonts/`. Licensed under the SIL Open Font
+  License 1.1 (`fonts/LICENSE.txt`). Latin glyphs are identical on every
+  machine; CJK and Nerd Font glyphs still come from the system.
+- `fonts/MapleMono-metrics.json` — the font's own metrics (ascent, descent, line
+  gap, advance width, underline/strikethrough), extracted with
+  `bun run build:font-metrics` and passed to `Terminal` as `fontMetrics`. The
+  cell grid is computed from these numbers instead of the platform font APIs,
+  so it is identical across browsers and operating systems. The renderer ignores
+  them when a different font is in use.
+
+Your own `~/.config/ghostty/config` is layered on top of `ghostty.config` when
+it exists, so on your machine the web terminal keeps mirroring your native
+terminal. Point the demo at a different config with
+`GHOSTTY_CONFIG=/path/to/config`.
+
+The server exposes all of this to the page at `/ghostty-config.json`; the page
+parses it with `parseGhosttyConfig` / `toTerminalOptions` from `ghostty-web`.
 
 ## Usage
 
