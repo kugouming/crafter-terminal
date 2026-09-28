@@ -3,16 +3,18 @@
  */
 
 import type { Ghostty } from './ghostty';
+import type { FaceMetrics, FontMetrics, MetricModifiers } from './metrics';
 
 export interface ITerminalOptions {
   cols?: number; // Default: 80
   rows?: number; // Default: 24
-  cursorBlink?: boolean; // Default: false
-  cursorStyle?: 'block' | 'underline' | 'bar';
+  cursorBlink?: boolean; // Default: true (matches Ghostty)
+  cursorStyle?: 'block' | 'underline' | 'bar'; // Default: 'block'
+  cursorOpacity?: number; // Default: 1
   theme?: ITheme;
   scrollback?: number; // Default: 10000
-  fontSize?: number; // Default: 15
-  fontFamily?: string; // Default: 'monospace'
+  fontSize?: number; // Default: 13 on macOS, 12 elsewhere (matches Ghostty)
+  fontFamily?: string; // Default: platform monospace stack (matches Ghostty)
   allowTransparency?: boolean;
 
   // Phase 1 additions
@@ -21,6 +23,32 @@ export interface ITerminalOptions {
 
   // Scrolling options
   smoothScrollDuration?: number; // Duration in ms for smooth scroll animation (default: 100, 0 = instant)
+
+  /**
+   * Metric adjustments, mirroring Ghostty's `adjust-*` configuration options.
+   * Values are deltas: `2` adds 2 pixels, `"20%"` increases by 20%.
+   */
+  adjustments?: MetricModifiers;
+
+  /**
+   * Explicit font metric overrides in CSS pixels. Applied after measurement
+   * and adjustments; useful to pin exact values from a font's tables.
+   */
+  metrics?: Partial<FontMetrics>;
+
+  /**
+   * Font metrics read from the font's own tables (in font units). When the
+   * pinned family is the one that resolves, the grid is computed from these
+   * instead of from browser font APIs, so it is identical across browsers and
+   * platforms. See `scripts/build-font-metrics.py`.
+   */
+  fontMetrics?: FaceMetrics;
+
+  /**
+   * Draw box-drawing and block-element characters as sprites instead of using
+   * the font's glyphs, like Ghostty does (default: true).
+   */
+  sprites?: boolean;
 
   // Internal: Ghostty WASM instance (optional, for test isolation)
   // If not provided, uses the module-level instance from init()

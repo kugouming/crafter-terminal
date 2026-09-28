@@ -11,7 +11,22 @@
  */
 
 import type { ITheme } from './interfaces';
+import {
+  type FaceMetrics,
+  type FontMetrics,
+  type MetricModifiers,
+  firstAvailableFontFamily,
+  isMonospaceFont,
+  measureFontMetrics,
+} from './metrics';
+import {
+  SCROLLBAR_MARGIN,
+  SCROLLBAR_THUMB_OPACITY_IDLE,
+  SCROLLBAR_THUMB_OPACITY_SCROLLED,
+  computeScrollbarLayout,
+} from './scrollbar';
 import type { SelectionManager } from './selection-manager';
+import { drawBlockElement, drawBoxDrawing } from './sprites';
 import type { GhosttyCell, ILink } from './types';
 import { CellFlags } from './types';
 
@@ -42,50 +57,137 @@ export interface IScrollbackProvider {
 // ============================================================================
 
 export interface RendererOptions {
-  fontSize?: number; // Default: 15
-  fontFamily?: string; // Default: 'monospace'
+  fontSize?: number; // Default: 13 on macOS, 12 elsewhere (matches Ghostty)
+  fontFamily?: string; // Default: platform monospace stack (matches Ghostty)
   cursorStyle?: 'block' | 'underline' | 'bar'; // Default: 'block'
   cursorBlink?: boolean; // Default: false
+  cursorOpacity?: number; // Default: 1
   theme?: ITheme;
   devicePixelRatio?: number; // Default: window.devicePixelRatio
+  /** Metric adjustments, mirroring Ghostty's `adjust-*` options */
+  adjustments?: MetricModifiers;
+  /** Explicit metric overrides, applied after measurement and adjustments */
+  metrics?: Partial<FontMetrics>;
+  /**
+   * Metrics read from the font's tables (see `scripts/build-font-metrics.py`).
+   * When set, the grid is computed from these instead of from browser font
+   * APIs, so it is identical on every browser and platform. Only used when the
+   * pinned family is the one that actually resolves.
+   */
+  fontMetrics?: FaceMetrics;
+  /**
+   * Draw box-drawing and block-element characters as sprites instead of using
+   * the font's glyphs, like Ghostty does. Default: true.
+   */
+  sprites?: boolean;
 }
 
-export interface FontMetrics {
-  width: number; // Character cell width in CSS pixels
-  height: number; // Character cell height in CSS pixels
-  baseline: number; // Distance from top to text baseline
-}
+export type { FontMetrics };
 
 // ============================================================================
 // Default Theme
 // ============================================================================
 
-export const DEFAULT_THEME: Required<ITheme> = {
-  foreground: '#d4d4d4',
-  background: '#1e1e1e',
+/**
+ * Ghostty's built-in default theme ("Ghostty Default Style"), so that an
+ * unconfigured web terminal renders identically to an unconfigured native one.
+ *
+ * Source: `src/config/Config.zig` (background/foreground) and
+ * `src/terminal/color.zig` (`Name.default`, the Tomorrow Night palette).
+ */
+export const GHOSTTY_DEFAULT_THEME: Required<ITheme> = {
+  foreground: '#ffffff',
+  background: '#282c34',
+  // The cursor defaults to the window foreground color, and the text under a
+  // block cursor to the window background color.
   cursor: '#ffffff',
-  cursorAccent: '#1e1e1e',
-  // Selection colors: solid colors that replace cell bg/fg when selected
-  // Using Ghostty's approach: selection bg = default fg, selection fg = default bg
-  selectionBackground: '#d4d4d4',
-  selectionForeground: '#1e1e1e',
-  black: '#000000',
-  red: '#cd3131',
-  green: '#0dbc79',
-  yellow: '#e5e510',
-  blue: '#2472c8',
-  magenta: '#bc3fbc',
-  cyan: '#11a8cd',
-  white: '#e5e5e5',
+  cursorAccent: '#282c34',
+  // With no `selection-*` configuration, Ghostty inverts the window
+  // foreground/background for selections.
+  selectionBackground: '#ffffff',
+  selectionForeground: '#282c34',
+  black: '#1d1f21',
+  red: '#cc6666',
+  green: '#b5bd68',
+  yellow: '#f0c674',
+  blue: '#81a2be',
+  magenta: '#b294bb',
+  cyan: '#8abeb7',
+  white: '#c5c8c6',
   brightBlack: '#666666',
-  brightRed: '#f14c4c',
-  brightGreen: '#23d18b',
-  brightYellow: '#f5f543',
-  brightBlue: '#3b8eea',
-  brightMagenta: '#d670d6',
-  brightCyan: '#29b8db',
-  brightWhite: '#ffffff',
+  brightRed: '#d54e53',
+  brightGreen: '#b9ca4a',
+  brightYellow: '#e7c547',
+  brightBlue: '#7aa6da',
+  brightMagenta: '#c397d8',
+  brightCyan: '#70c0b1',
+  brightWhite: '#eaeaea',
 };
+
+/** @deprecated Use {@link GHOSTTY_DEFAULT_THEME}. Kept as an alias for compatibility. */
+export const DEFAULT_THEME: Required<ITheme> = GHOSTTY_DEFAULT_THEME;
+
+// ============================================================================
+// Default Font
+// ============================================================================
+
+function detectMacOS(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent ?? '';
+  if (/Mac|iPhone|iPad|iPod/.test(ua)) return true;
+  const platform = (navigator as Navigator & { platform?: string }).platform ?? '';
+  return platform.startsWith('Mac');
+}
+
+/** Ghostty's default font size: 13 on macOS, 12 everywhere else. */
+export const DEFAULT_FONT_SIZE = detectMacOS() ? 13 : 12;
+
+/**
+ * Default font stack. Ghostty uses the system monospace font when `font-family`
+ * is unset; this stack picks the same font the platform's browsers use for
+ * `monospace` while avoiding the "last resort" font that browsers fall back to
+ * when a generic family is not configured.
+ */
+export const DEFAULT_FONT_FAMILY =
+  'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, "DejaVu Sans Mono", "Liberation Mono", "Courier New", monospace';
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+interface RGB {
+  r: number;
+  g: number;
+  b: number;
+}
+
+/**
+ * Parse `#rgb`, `#rrggbb` (with or without `#`) into RGB components.
+ */
+export function parseHexColor(value: string | undefined): RGB | null {
+  if (!value) return null;
+  let hex = value.trim().replace(/^#/, '');
+  if (hex.length === 3) {
+    hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+  }
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return null;
+  return {
+    r: Number.parseInt(hex.slice(0, 2), 16),
+    g: Number.parseInt(hex.slice(2, 4), 16),
+    b: Number.parseInt(hex.slice(4, 6), 16),
+  };
+}
+
+/**
+ * Ghostty paints "covering" glyphs using the foreground color as the cell
+ * background, so that they always cover the cell completely.
+ *
+ * Mirrors `isCovering` in `src/renderer/cell.zig`, which currently only
+ * matches U+2588 FULL BLOCK.
+ */
+export function isCovering(codepoint: number): boolean {
+  return codepoint === 0x2588;
+}
 
 // ============================================================================
 // CanvasRenderer Class
@@ -98,10 +200,20 @@ export class CanvasRenderer {
   private fontFamily: string;
   private cursorStyle: 'block' | 'underline' | 'bar';
   private cursorBlink: boolean;
+  private cursorOpacity: number;
   private theme: Required<ITheme>;
   private devicePixelRatio: number;
   private metrics: FontMetrics;
+  private adjustments: MetricModifiers;
+  private metricsOverride: Partial<FontMetrics>;
+  private fontMetrics?: FaceMetrics;
+  private sprites: boolean;
   private palette: string[];
+  /** Theme background as RGB, used to detect cells with no explicit background */
+  private defaultBg: RGB;
+  /** Last canvas size in CSS pixels (canvas.width is in device pixels) */
+  private canvasCssWidth: number = 0;
+  private canvasCssHeight: number = 0;
 
   // Cursor blinking state
   private cursorVisible: boolean = true;
@@ -147,34 +259,24 @@ export class CanvasRenderer {
     this.ctx = ctx;
 
     // Apply options
-    this.fontSize = options.fontSize ?? 15;
-    this.fontFamily = options.fontFamily ?? 'monospace';
+    this.fontSize = options.fontSize ?? DEFAULT_FONT_SIZE;
+    this.fontFamily = options.fontFamily ?? DEFAULT_FONT_FAMILY;
     this.cursorStyle = options.cursorStyle ?? 'block';
     this.cursorBlink = options.cursorBlink ?? false;
-    this.theme = { ...DEFAULT_THEME, ...options.theme };
+    this.cursorOpacity = options.cursorOpacity ?? 1;
+    this.theme = { ...GHOSTTY_DEFAULT_THEME, ...options.theme };
     this.devicePixelRatio = options.devicePixelRatio ?? window.devicePixelRatio ?? 1;
+    this.adjustments = options.adjustments ?? {};
+    this.metricsOverride = options.metrics ?? {};
+    this.fontMetrics = options.fontMetrics;
+    this.sprites = options.sprites ?? true;
 
     // Build color palette (16 ANSI colors)
-    this.palette = [
-      this.theme.black,
-      this.theme.red,
-      this.theme.green,
-      this.theme.yellow,
-      this.theme.blue,
-      this.theme.magenta,
-      this.theme.cyan,
-      this.theme.white,
-      this.theme.brightBlack,
-      this.theme.brightRed,
-      this.theme.brightGreen,
-      this.theme.brightYellow,
-      this.theme.brightBlue,
-      this.theme.brightMagenta,
-      this.theme.brightCyan,
-      this.theme.brightWhite,
-    ];
+    this.palette = this.buildPalette();
+    this.defaultBg = parseHexColor(this.theme.background) ?? { r: 0, g: 0, b: 0 };
 
     // Measure font metrics
+    this.resolveFontFamily();
     this.metrics = this.measureFont();
 
     // Setup cursor blinking if enabled
@@ -187,28 +289,83 @@ export class CanvasRenderer {
   // Font Metrics Measurement
   // ==========================================================================
 
+  /**
+   * Make sure the configured font is actually usable as a terminal font.
+   *
+   * If the family (or the first available family in the stack) is not
+   * monospace, the browser has fallen back to a proportional font - usually
+   * because the configured font is not installed. Drawing a grid with a
+   * proportional font puts every glyph in a cell sized for the widest
+   * character, which looks broken, so we switch to the default monospace
+   * stack instead.
+   */
+  private resolveFontFamily(): void {
+    const monospace = isMonospaceFont(this.fontFamily, this.fontSize * this.devicePixelRatio);
+    if (monospace === false) {
+      console.warn(
+        `ghostty-web: "${this.fontFamily}" is not available as a monospace font in this ` +
+          `browser (is it installed?); falling back to the default monospace stack`
+      );
+      this.fontFamily = DEFAULT_FONT_FAMILY;
+    }
+  }
+
+  /**
+   * Pick the metrics source: the font's own tables when the pinned family is
+   * the one that will actually be used, browser measurement otherwise.
+   *
+   * Pinned metrics describe one specific font, so using them while rendering a
+   * different one (because the font is missing, or because the user configured
+   * another family that is installed) would produce a wrong grid.
+   */
+  private resolveFaceMetrics(): FaceMetrics | undefined {
+    const face = this.fontMetrics;
+    if (!face) return undefined;
+
+    if (!face.family) {
+      console.warn('ghostty-web: fontMetrics has no family, ignoring the pinned metrics');
+      return undefined;
+    }
+
+    const px = this.fontSize * this.devicePixelRatio;
+    const resolved = firstAvailableFontFamily(this.fontFamily, px);
+    if (resolved !== null && resolved.toLowerCase() === face.family.toLowerCase()) {
+      return face;
+    }
+
+    console.warn(
+      `ghostty-web: pinned metrics are for "${face.family}" but "${resolved ?? this.fontFamily}" ` +
+        'resolves first; measuring the font instead'
+    );
+    return undefined;
+  }
+
+  /**
+   * Measure font metrics using Ghostty's algorithm (see `lib/metrics.ts`).
+   */
   private measureFont(): FontMetrics {
-    // Use an offscreen canvas for measurement
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d')!;
+    const measured = measureFontMetrics({
+      fontSize: this.fontSize,
+      fontFamily: this.fontFamily,
+      devicePixelRatio: this.devicePixelRatio,
+      adjustments: this.adjustments,
+      face: this.resolveFaceMetrics(),
+    });
 
-    // Set font (use actual pixel size for accurate measurement)
-    ctx.font = `${this.fontSize}px ${this.fontFamily}`;
+    const hasOverride = Object.keys(this.metricsOverride).length > 0;
+    const result = hasOverride ? { ...measured, ...this.metricsOverride } : measured;
 
-    // Measure width using 'M' (typically widest character)
-    const widthMetrics = ctx.measureText('M');
-    const width = Math.ceil(widthMetrics.width);
+    // Keep derived values consistent when the caller overrides primitives.
+    if (hasOverride) {
+      if (this.metricsOverride.cursorHeight === undefined) {
+        result.cursorHeight = result.height;
+      }
+      if (this.metricsOverride.overlineThickness === undefined) {
+        result.overlineThickness = result.underlineThickness;
+      }
+    }
 
-    // Measure height using ascent + descent with padding for glyph overflow
-    const ascent = widthMetrics.actualBoundingBoxAscent || this.fontSize * 0.8;
-    const descent = widthMetrics.actualBoundingBoxDescent || this.fontSize * 0.2;
-
-    // Add 2px padding to height to account for glyphs that overflow (like 'f', 'd', 'g', 'p')
-    // and anti-aliasing pixels
-    const height = Math.ceil(ascent + descent) + 2;
-    const baseline = Math.ceil(ascent) + 1; // Offset baseline by half the padding
-
-    return { width, height, baseline };
+    return result;
   }
 
   /**
@@ -237,16 +394,24 @@ export class CanvasRenderer {
     const cssWidth = cols * this.metrics.width;
     const cssHeight = rows * this.metrics.height;
 
+    // Device-pixel canvas size. Metrics can be fractional CSS pixels (e.g. a
+    // cell width of 8.5 at DPR 2), so round to whole device pixels and let the
+    // canvas cover any remainder.
+    const pixelWidth = Math.round(cssWidth * this.devicePixelRatio);
+    const pixelHeight = Math.round(cssHeight * this.devicePixelRatio);
+
     // Set CSS size (what user sees)
     this.canvas.style.width = `${cssWidth}px`;
     this.canvas.style.height = `${cssHeight}px`;
 
     // Set actual canvas size (scaled for DPI)
-    this.canvas.width = cssWidth * this.devicePixelRatio;
-    this.canvas.height = cssHeight * this.devicePixelRatio;
+    this.canvas.width = pixelWidth;
+    this.canvas.height = pixelHeight;
 
     // Scale context to match DPI (setting canvas.width/height resets the context)
-    this.ctx.scale(this.devicePixelRatio, this.devicePixelRatio);
+    this.ctx.scale(pixelWidth / cssWidth, pixelHeight / cssHeight);
+    this.canvasCssWidth = cssWidth;
+    this.canvasCssHeight = cssHeight;
 
     // Set text rendering properties for crisp text
     this.ctx.textBaseline = 'alphabetic';
@@ -287,8 +452,8 @@ export class CanvasRenderer {
 
     // Resize canvas if dimensions changed
     const needsResize =
-      this.canvas.width !== dims.cols * this.metrics.width * this.devicePixelRatio ||
-      this.canvas.height !== dims.rows * this.metrics.height * this.devicePixelRatio;
+      this.canvas.width !== Math.round(dims.cols * this.metrics.width * this.devicePixelRatio) ||
+      this.canvas.height !== Math.round(dims.rows * this.metrics.height * this.devicePixelRatio);
 
     if (needsResize) {
       this.resize(dims.cols, dims.rows);
@@ -574,15 +739,24 @@ export class CanvasRenderer {
       bg_r = cell.fg_r;
       bg_g = cell.fg_g;
       bg_b = cell.fg_b;
+    } else if (isCovering(cell.codepoint)) {
+      // Ghostty fills the background of covering glyphs (U+2588 FULL BLOCK)
+      // with the foreground color, so they always paint a solid block even if
+      // the glyph does not quite fill the cell.
+      bg_r = cell.fg_r;
+      bg_g = cell.fg_g;
+      bg_b = cell.fg_b;
     }
 
-    // Only draw cell background if it's different from the default (black)
-    // This lets the theme background (drawn earlier) show through for default cells
-    const isDefaultBg = bg_r === 0 && bg_g === 0 && bg_b === 0;
-    if (!isDefaultBg) {
-      this.ctx.fillStyle = this.rgbToCSS(bg_r, bg_g, bg_b);
-      this.ctx.fillRect(cellX, cellY, cellWidth, this.metrics.height);
+    // Cells without an explicit background are transparent in Ghostty: the
+    // window background (already painted) shows through. The WASM resolves
+    // default cells to the configured background color, so compare against it.
+    if (bg_r === this.defaultBg.r && bg_g === this.defaultBg.g && bg_b === this.defaultBg.b) {
+      return;
     }
+
+    this.ctx.fillStyle = this.rgbToCSS(bg_r, bg_g, bg_b);
+    this.ctx.fillRect(cellX, cellY, cellWidth, this.metrics.height);
   }
 
   /**
@@ -639,41 +813,53 @@ export class CanvasRenderer {
     const textY = cellY + this.metrics.baseline;
 
     // Get the character to render - use grapheme lookup for complex scripts
+    const codepoint = cell.codepoint || 32;
     let char: string;
     if (cell.grapheme_len > 0 && this.currentBuffer?.getGraphemeString) {
       // Cell has additional codepoints - get full grapheme cluster
       char = this.currentBuffer.getGraphemeString(y, x);
     } else {
       // Simple cell - single codepoint
-      char = String.fromCodePoint(cell.codepoint || 32); // Default to space if null
-    }
-    this.ctx.fillText(char, textX, textY);
-
-    // Reset alpha
-    if (cell.flags & CellFlags.FAINT) {
-      this.ctx.globalAlpha = 1.0;
+      char = String.fromCodePoint(codepoint); // Default to space if null
     }
 
-    // Draw underline
+    // Box drawing and block elements are drawn as sprites (like Ghostty does)
+    // so they line up with the cell grid instead of the font's line height.
+    let drewSprite = false;
+    if (this.sprites && cell.grapheme_len === 0) {
+      const spriteMetrics = {
+        cellWidth: this.metrics.width * cell.width,
+        cellHeight: this.metrics.height,
+        boxThickness: this.metrics.underlineThickness,
+        devicePixelRatio: this.devicePixelRatio,
+      };
+      drewSprite =
+        drawBoxDrawing(this.ctx, codepoint, textX, cellY, spriteMetrics) ||
+        drawBlockElement(this.ctx, codepoint, textX, cellY, spriteMetrics);
+    }
+
+    if (!drewSprite) {
+      this.ctx.fillText(char, textX, textY);
+    }
+
+    // Draw underline (position/thickness follow the font metrics, like Ghostty)
     if (cell.flags & CellFlags.UNDERLINE) {
-      const underlineY = cellY + this.metrics.baseline + 2;
-      this.ctx.strokeStyle = this.ctx.fillStyle;
-      this.ctx.lineWidth = 1;
-      this.ctx.beginPath();
-      this.ctx.moveTo(cellX, underlineY);
-      this.ctx.lineTo(cellX + cellWidth, underlineY);
-      this.ctx.stroke();
+      this.ctx.fillRect(
+        cellX,
+        cellY + this.metrics.underlinePosition,
+        cellWidth,
+        this.metrics.underlineThickness
+      );
     }
 
     // Draw strikethrough
     if (cell.flags & CellFlags.STRIKETHROUGH) {
-      const strikeY = cellY + this.metrics.height / 2;
-      this.ctx.strokeStyle = this.ctx.fillStyle;
-      this.ctx.lineWidth = 1;
-      this.ctx.beginPath();
-      this.ctx.moveTo(cellX, strikeY);
-      this.ctx.lineTo(cellX + cellWidth, strikeY);
-      this.ctx.stroke();
+      this.ctx.fillRect(
+        cellX,
+        cellY + this.metrics.strikethroughPosition,
+        cellWidth,
+        this.metrics.strikethroughThickness
+      );
     }
 
     // Draw hyperlink underline (for OSC8 hyperlinks)
@@ -682,12 +868,11 @@ export class CanvasRenderer {
 
       // Only show underline when hovered (cleaner look)
       if (isHovered) {
-        const underlineY = cellY + this.metrics.baseline + 2;
         this.ctx.strokeStyle = '#4A90E2'; // Blue underline on hover
-        this.ctx.lineWidth = 1;
+        this.ctx.lineWidth = this.metrics.underlineThickness;
         this.ctx.beginPath();
-        this.ctx.moveTo(cellX, underlineY);
-        this.ctx.lineTo(cellX + cellWidth, underlineY);
+        this.ctx.moveTo(cellX, cellY + this.metrics.underlinePosition);
+        this.ctx.lineTo(cellX + cellWidth, cellY + this.metrics.underlinePosition);
         this.ctx.stroke();
       }
     }
@@ -702,37 +887,50 @@ export class CanvasRenderer {
         (y === range.endY && x <= range.endX && (y > range.startY || x >= range.startX));
 
       if (isInRange) {
-        const underlineY = cellY + this.metrics.baseline + 2;
         this.ctx.strokeStyle = '#4A90E2'; // Blue underline on hover
-        this.ctx.lineWidth = 1;
+        this.ctx.lineWidth = this.metrics.underlineThickness;
         this.ctx.beginPath();
-        this.ctx.moveTo(cellX, underlineY);
-        this.ctx.lineTo(cellX + cellWidth, underlineY);
+        this.ctx.moveTo(cellX, cellY + this.metrics.underlinePosition);
+        this.ctx.lineTo(cellX + cellWidth, cellY + this.metrics.underlinePosition);
         this.ctx.stroke();
       }
+    }
+
+    // Reset alpha (faint applies to decorations too, like in Ghostty)
+    if (cell.flags & CellFlags.FAINT) {
+      this.ctx.globalAlpha = 1.0;
     }
   }
 
   /**
    * Render cursor
+   *
+   * Geometry mirrors Ghostty's cursor sprites:
+   * - block: fills the whole cell, text redrawn in the cursor-text color
+   * - bar: `cursorThickness` wide, centered on the left edge of the cell
+   * - underline: `cursorThickness` tall, sitting at the underline position
    */
   private renderCursor(x: number, y: number): void {
     const cursorX = x * this.metrics.width;
     const cursorY = y * this.metrics.height;
 
     this.ctx.fillStyle = this.theme.cursor;
+    const previousAlpha = this.ctx.globalAlpha;
+    if (this.cursorOpacity < 1) {
+      this.ctx.globalAlpha = previousAlpha * this.cursorOpacity;
+    }
 
     switch (this.cursorStyle) {
       case 'block':
         // Full cell block
-        this.ctx.fillRect(cursorX, cursorY, this.metrics.width, this.metrics.height);
+        this.ctx.fillRect(cursorX, cursorY, this.metrics.width, this.metrics.cursorHeight);
         // Re-draw character under cursor with cursorAccent color
         {
           const line = this.currentBuffer?.getLine(y);
           if (line?.[x]) {
             this.ctx.save();
             this.ctx.beginPath();
-            this.ctx.rect(cursorX, cursorY, this.metrics.width, this.metrics.height);
+            this.ctx.rect(cursorX, cursorY, this.metrics.width, this.metrics.cursorHeight);
             this.ctx.clip();
             this.renderCellText(line[x], x, y, this.theme.cursorAccent);
             this.ctx.restore();
@@ -741,22 +939,28 @@ export class CanvasRenderer {
         break;
 
       case 'underline':
-        // Underline at bottom of cell
-        const underlineHeight = Math.max(2, Math.floor(this.metrics.height * 0.15));
+        // Underline at the font's underline position
         this.ctx.fillRect(
           cursorX,
-          cursorY + this.metrics.height - underlineHeight,
+          cursorY + this.metrics.underlinePosition,
           this.metrics.width,
-          underlineHeight
+          this.metrics.cursorThickness
         );
         break;
 
       case 'bar':
-        // Vertical bar at left of cell
-        const barWidth = Math.max(2, Math.floor(this.metrics.width * 0.15));
-        this.ctx.fillRect(cursorX, cursorY, barWidth, this.metrics.height);
+        // Vertical bar, shifted half its thickness to the left so it sits
+        // between characters rather than on top of one.
+        this.ctx.fillRect(
+          cursorX - Math.floor((this.metrics.cursorThickness + 1) / 2),
+          cursorY,
+          this.metrics.cursorThickness,
+          this.metrics.cursorHeight
+        );
         break;
     }
+
+    this.ctx.globalAlpha = previousAlpha;
   }
 
   // ==========================================================================
@@ -787,10 +991,14 @@ export class CanvasRenderer {
    * Update theme colors
    */
   public setTheme(theme: ITheme): void {
-    this.theme = { ...DEFAULT_THEME, ...theme };
+    this.theme = { ...GHOSTTY_DEFAULT_THEME, ...theme };
+    this.palette = this.buildPalette();
+    this.defaultBg = parseHexColor(this.theme.background) ?? { r: 0, g: 0, b: 0 };
+  }
 
-    // Rebuild palette
-    this.palette = [
+  /** Build the 16-color ANSI palette from the current theme. */
+  private buildPalette(): string[] {
+    return [
       this.theme.black,
       this.theme.red,
       this.theme.green,
@@ -823,7 +1031,39 @@ export class CanvasRenderer {
    */
   public setFontFamily(family: string): void {
     this.fontFamily = family;
+    this.resolveFontFamily();
     this.metrics = this.measureFont();
+  }
+
+  /**
+   * Update metric adjustments (Ghostty's `adjust-*` options)
+   */
+  public setAdjustments(adjustments: MetricModifiers): void {
+    this.adjustments = adjustments ?? {};
+    this.metrics = this.measureFont();
+  }
+
+  /**
+   * Update explicit metric overrides (applied after measurement)
+   */
+  public setMetricsOverride(metrics: Partial<FontMetrics>): void {
+    this.metricsOverride = metrics ?? {};
+    this.metrics = this.measureFont();
+  }
+
+  /**
+   * Update the font-table metrics used to compute the grid
+   */
+  public setFontMetrics(fontMetrics?: FaceMetrics): void {
+    this.fontMetrics = fontMetrics;
+    this.metrics = this.measureFont();
+  }
+
+  /**
+   * Update cursor opacity (Ghostty's `cursor-opacity`)
+   */
+  public setCursorOpacity(opacity: number): void {
+    this.cursorOpacity = Math.min(1, Math.max(0, opacity));
   }
 
   /**
@@ -862,40 +1102,38 @@ export class CanvasRenderer {
     opacity: number = 1
   ): void {
     const ctx = this.ctx;
-    const canvasHeight = this.canvas.height / this.devicePixelRatio;
-    const canvasWidth = this.canvas.width / this.devicePixelRatio;
+    const canvasHeight = this.canvasCssHeight || this.canvas.height / this.devicePixelRatio;
+    const canvasWidth = this.canvasCssWidth || this.canvas.width / this.devicePixelRatio;
 
-    // Scrollbar dimensions
-    const scrollbarWidth = 8;
-    const scrollbarX = canvasWidth - scrollbarWidth - 4;
-    const scrollbarPadding = 4;
-    const scrollbarTrackHeight = canvasHeight - scrollbarPadding * 2;
+    const layout = computeScrollbarLayout(
+      canvasWidth,
+      canvasHeight,
+      viewportY,
+      scrollbackLength,
+      visibleRows
+    );
 
     // Always clear the scrollbar area first (fixes ghosting when fading out)
-    ctx.clearRect(scrollbarX - 2, 0, scrollbarWidth + 6, canvasHeight);
+    ctx.clearRect(layout.x - 2, 0, layout.width + SCROLLBAR_MARGIN + 2, canvasHeight);
     ctx.fillStyle = this.theme.background;
-    ctx.fillRect(scrollbarX - 2, 0, scrollbarWidth + 6, canvasHeight);
+    ctx.fillRect(layout.x - 2, 0, layout.width + SCROLLBAR_MARGIN + 2, canvasHeight);
 
     // Don't draw scrollbar if fully transparent or no scrollback
     if (opacity <= 0 || scrollbackLength === 0) return;
 
-    // Calculate scrollbar thumb size and position
-    const totalLines = scrollbackLength + visibleRows;
-    const thumbHeight = Math.max(20, (visibleRows / totalLines) * scrollbarTrackHeight);
+    // Just a faint rounded thumb: no track, so an idle terminal stays clean
+    const thumbOpacity =
+      (viewportY > 0 ? SCROLLBAR_THUMB_OPACITY_SCROLLED : SCROLLBAR_THUMB_OPACITY_IDLE) * opacity;
+    ctx.fillStyle = `rgba(255, 255, 255, ${thumbOpacity})`;
 
-    // Position: 0 = at bottom, scrollbackLength = at top
-    const scrollPosition = viewportY / scrollbackLength; // 0 to 1
-    const thumbY = scrollbarPadding + (scrollbarTrackHeight - thumbHeight) * (1 - scrollPosition);
-
-    // Draw scrollbar track (subtle background) with opacity
-    ctx.fillStyle = `rgba(128, 128, 128, ${0.1 * opacity})`;
-    ctx.fillRect(scrollbarX, scrollbarPadding, scrollbarWidth, scrollbarTrackHeight);
-
-    // Draw scrollbar thumb with opacity
-    const isScrolled = viewportY > 0;
-    const baseOpacity = isScrolled ? 0.5 : 0.3;
-    ctx.fillStyle = `rgba(128, 128, 128, ${baseOpacity * opacity})`;
-    ctx.fillRect(scrollbarX, thumbY, scrollbarWidth, thumbHeight);
+    const radius = layout.width / 2;
+    if (typeof ctx.roundRect === 'function') {
+      ctx.beginPath();
+      ctx.roundRect(layout.x, layout.thumbY, layout.width, layout.thumbHeight, radius);
+      ctx.fill();
+    } else {
+      ctx.fillRect(layout.x, layout.thumbY, layout.width, layout.thumbHeight);
+    }
   }
   public getMetrics(): FontMetrics {
     return { ...this.metrics };
@@ -985,11 +1223,14 @@ export class CanvasRenderer {
    * Clear entire canvas
    */
   public clear(): void {
+    // The context is scaled, so work in CSS pixels.
+    const width = this.canvasCssWidth || this.canvas.width / this.devicePixelRatio;
+    const height = this.canvasCssHeight || this.canvas.height / this.devicePixelRatio;
     // clearRect first because fillRect composites rather than replaces,
     // so transparent/translucent backgrounds wouldn't clear previous content.
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.clearRect(0, 0, width, height);
     this.ctx.fillStyle = this.theme.background;
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.fillRect(0, 0, width, height);
   }
 
   /**

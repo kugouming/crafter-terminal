@@ -34,7 +34,13 @@ import type {
 import { LinkDetector } from './link-detector';
 import { OSC8LinkProvider } from './providers/osc8-link-provider';
 import { UrlRegexProvider } from './providers/url-regex-provider';
-import { CanvasRenderer } from './renderer';
+import {
+  CanvasRenderer,
+  DEFAULT_FONT_FAMILY,
+  DEFAULT_FONT_SIZE,
+  GHOSTTY_DEFAULT_THEME,
+} from './renderer';
+import { computeScrollbarLayout, isOnScrollbar } from './scrollbar';
 import { SelectionManager } from './selection-manager';
 import type { ILink, ILinkProvider } from './types';
 
@@ -131,27 +137,38 @@ export class Terminal implements ITerminalCore {
   private scrollbarVisible: boolean = false;
   private scrollbarOpacity: number = 0;
   private scrollbarHideTimeout?: number;
-  private readonly SCROLLBAR_HIDE_DELAY_MS = 1500; // Hide after 1.5 seconds
-  private readonly SCROLLBAR_FADE_DURATION_MS = 200; // 200ms fade animation
+  private readonly SCROLLBAR_HIDE_DELAY_MS = 900; // Hide shortly after scrolling stops
+  private readonly SCROLLBAR_FADE_DURATION_MS = 180; // Fade animation
 
   constructor(options: ITerminalOptions = {}) {
     // Use provided Ghostty instance (for test isolation) or get module-level instance
     this.ghostty = options.ghostty ?? getGhostty();
 
     // Create base options object with all defaults (excluding ghostty)
+    // Defaults follow Ghostty's own defaults so that an unconfigured web
+    // terminal looks like an unconfigured native one.
     const baseOptions = {
       cols: options.cols ?? 80,
       rows: options.rows ?? 24,
-      cursorBlink: options.cursorBlink ?? false,
+      cursorBlink: options.cursorBlink ?? true,
       cursorStyle: options.cursorStyle ?? 'block',
+      cursorOpacity: options.cursorOpacity ?? 1,
       theme: options.theme ?? {},
       scrollback: options.scrollback ?? 10000,
-      fontSize: options.fontSize ?? 15,
-      fontFamily: options.fontFamily ?? 'monospace',
+      fontSize: options.fontSize ?? DEFAULT_FONT_SIZE,
+      fontFamily: options.fontFamily ?? DEFAULT_FONT_FAMILY,
       allowTransparency: options.allowTransparency ?? false,
       convertEol: options.convertEol ?? false,
       disableStdin: options.disableStdin ?? false,
       smoothScrollDuration: options.smoothScrollDuration ?? 100, // Default: 100ms smooth scroll
+      // Ghostty `adjust-*` metric options
+      adjustments: options.adjustments ?? {},
+      // Explicit metric overrides (advanced)
+      metrics: options.metrics ?? {},
+      // Metrics read from the font's tables (pins the grid across browsers)
+      fontMetrics: options.fontMetrics,
+      // Draw box-drawing/block characters as sprites (like Ghostty)
+      sprites: options.sprites ?? true,
     };
 
     // Wrap in Proxy to intercept runtime changes (xterm.js compatibility)
@@ -203,7 +220,33 @@ export class Terminal implements ITerminalCore {
 
       case 'theme':
         if (this.renderer) {
-          console.warn('ghostty-web: theme changes after open() are not yet fully supported');
+          this.renderer.setTheme(this.options.theme);
+          this.renderer.render(this.wasmTerm!, true, this.viewportY, this);
+        }
+        break;
+
+      case 'cursorOpacity':
+        this.renderer?.setCursorOpacity(this.options.cursorOpacity);
+        break;
+
+      case 'adjustments':
+        if (this.renderer) {
+          this.renderer.setAdjustments(this.options.adjustments);
+          this.handleFontChange();
+        }
+        break;
+
+      case 'metrics':
+        if (this.renderer) {
+          this.renderer.setMetricsOverride(this.options.metrics);
+          this.handleFontChange();
+        }
+        break;
+
+      case 'fontMetrics':
+        if (this.renderer) {
+          this.renderer.setFontMetrics(this.options.fontMetrics);
+          this.handleFontChange();
         }
         break;
 
@@ -230,6 +273,26 @@ export class Terminal implements ITerminalCore {
   }
 
   /**
+   * Re-measure the font once web fonts finish loading.
+   *
+   * Cell metrics are measured when the renderer is created; if a web font is
+   * still loading at that point the measurements come from the fallback font,
+   * which would leave the whole grid slightly wrong.
+   */
+  private observeFontLoading(): void {
+    if (typeof document === 'undefined' || !document.fonts) return;
+
+    const remeasure = () => {
+      if (this.isDisposed || !this.renderer) return;
+      this.renderer.setFontFamily(this.options.fontFamily);
+      this.handleFontChange();
+    };
+
+    document.fonts.addEventListener?.('loadingdone', remeasure);
+    document.fonts.ready.then(remeasure).catch(() => {});
+  }
+
+  /**
    * Handle font changes (fontSize or fontFamily)
    * Updates canvas size to match new font metrics and forces a full re-render
    */
@@ -241,15 +304,9 @@ export class Terminal implements ITerminalCore {
       this.selectionManager.clearSelection();
     }
 
-    // Resize canvas to match new font metrics
+    // Resize canvas to match new font metrics (also updates the CSS size and
+    // the device-pixel scaling of the context)
     this.renderer.resize(this.cols, this.rows);
-
-    // Update canvas element dimensions to match renderer
-    const metrics = this.renderer.getMetrics();
-    this.canvas.width = metrics.width * this.cols;
-    this.canvas.height = metrics.height * this.rows;
-    this.canvas.style.width = `${metrics.width * this.cols}px`;
-    this.canvas.style.height = `${metrics.height * this.rows}px`;
 
     // Force full re-render with new font
     this.renderer.render(this.wasmTerm, true, this.viewportY, this);
@@ -286,43 +343,42 @@ export class Terminal implements ITerminalCore {
 
   /**
    * Convert terminal options to WASM terminal config.
+   *
+   * The theme is merged with Ghostty's defaults first: the WASM resolves
+   * default cell colors from this config, and it has to agree with what the
+   * renderer paints for the terminal to look right.
    */
   private buildWasmConfig(): GhosttyTerminalConfig | undefined {
-    const theme = this.options.theme;
+    const theme = { ...GHOSTTY_DEFAULT_THEME, ...this.options.theme };
     const scrollback = this.options.scrollback;
-
-    // If no theme and default scrollback, use defaults
-    if (!theme && scrollback === 10000) {
-      return undefined;
-    }
 
     // Build palette array from theme colors
     // Order: black, red, green, yellow, blue, magenta, cyan, white,
     //        brightBlack, brightRed, brightGreen, brightYellow, brightBlue, brightMagenta, brightCyan, brightWhite
     const palette: number[] = [
-      this.parseColorToHex(theme?.black),
-      this.parseColorToHex(theme?.red),
-      this.parseColorToHex(theme?.green),
-      this.parseColorToHex(theme?.yellow),
-      this.parseColorToHex(theme?.blue),
-      this.parseColorToHex(theme?.magenta),
-      this.parseColorToHex(theme?.cyan),
-      this.parseColorToHex(theme?.white),
-      this.parseColorToHex(theme?.brightBlack),
-      this.parseColorToHex(theme?.brightRed),
-      this.parseColorToHex(theme?.brightGreen),
-      this.parseColorToHex(theme?.brightYellow),
-      this.parseColorToHex(theme?.brightBlue),
-      this.parseColorToHex(theme?.brightMagenta),
-      this.parseColorToHex(theme?.brightCyan),
-      this.parseColorToHex(theme?.brightWhite),
+      this.parseColorToHex(theme.black),
+      this.parseColorToHex(theme.red),
+      this.parseColorToHex(theme.green),
+      this.parseColorToHex(theme.yellow),
+      this.parseColorToHex(theme.blue),
+      this.parseColorToHex(theme.magenta),
+      this.parseColorToHex(theme.cyan),
+      this.parseColorToHex(theme.white),
+      this.parseColorToHex(theme.brightBlack),
+      this.parseColorToHex(theme.brightRed),
+      this.parseColorToHex(theme.brightGreen),
+      this.parseColorToHex(theme.brightYellow),
+      this.parseColorToHex(theme.brightBlue),
+      this.parseColorToHex(theme.brightMagenta),
+      this.parseColorToHex(theme.brightCyan),
+      this.parseColorToHex(theme.brightWhite),
     ];
 
     return {
       scrollbackLimit: scrollback,
-      fgColor: this.parseColorToHex(theme?.foreground),
-      bgColor: this.parseColorToHex(theme?.background),
-      cursorColor: this.parseColorToHex(theme?.cursor),
+      fgColor: this.parseColorToHex(theme.foreground),
+      bgColor: this.parseColorToHex(theme.background),
+      cursorColor: this.parseColorToHex(theme.cursor),
       palette,
     };
   }
@@ -423,11 +479,21 @@ export class Terminal implements ITerminalCore {
         fontFamily: this.options.fontFamily,
         cursorStyle: this.options.cursorStyle,
         cursorBlink: this.options.cursorBlink,
+        cursorOpacity: this.options.cursorOpacity,
         theme: this.options.theme,
+        adjustments: this.options.adjustments,
+        metrics: this.options.metrics,
+        fontMetrics: this.options.fontMetrics,
+        sprites: this.options.sprites,
       });
 
       // Size canvas to terminal dimensions (use renderer.resize for proper DPI scaling)
       this.renderer.resize(this.cols, this.rows);
+
+      // Web fonts may still be loading when the renderer measures the font, in
+      // which case the metrics (and the whole grid) are based on the fallback
+      // font. Re-measure and redraw once the fonts are ready.
+      this.observeFontLoading();
 
       // Create mouse tracking configuration
       const canvas = this.canvas;
@@ -1626,31 +1692,24 @@ export class Terminal implements ITerminalCore {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    // Calculate scrollbar dimensions (match renderer's logic)
-    // Use rect dimensions which are already in CSS pixels
-    const canvasWidth = rect.width;
-    const canvasHeight = rect.height;
-    const scrollbarWidth = 8;
-    const scrollbarX = canvasWidth - scrollbarWidth - 4;
-    const scrollbarPadding = 4;
+    // Same geometry the renderer draws with (lib/scrollbar.ts)
+    const layout = computeScrollbarLayout(
+      rect.width,
+      rect.height,
+      this.viewportY,
+      scrollbackLength,
+      this.rows
+    );
 
     // Check if click is in scrollbar area
-    if (mouseX >= scrollbarX && mouseX <= scrollbarX + scrollbarWidth) {
+    if (isOnScrollbar(layout, mouseX, mouseY)) {
       // Prevent default and stop propagation to prevent text selection
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation(); // Stop SelectionManager from seeing this event
 
-      // Calculate scrollbar thumb position and size
-      const scrollbarTrackHeight = canvasHeight - scrollbarPadding * 2;
-      const visibleRows = this.rows;
-      const totalLines = scrollbackLength + visibleRows;
-      const thumbHeight = Math.max(20, (visibleRows / totalLines) * scrollbarTrackHeight);
-      const scrollPosition = this.viewportY / scrollbackLength;
-      const thumbY = scrollbarPadding + (scrollbarTrackHeight - thumbHeight) * (1 - scrollPosition);
-
       // Check if click is on thumb
-      if (mouseY >= thumbY && mouseY <= thumbY + thumbHeight) {
+      if (mouseY >= layout.thumbY && mouseY <= layout.thumbY + layout.thumbHeight) {
         // Start dragging thumb
         this.isDraggingScrollbar = true;
         this.scrollbarDragStart = mouseY;
@@ -1662,9 +1721,9 @@ export class Terminal implements ITerminalCore {
           this.canvas.style.webkitUserSelect = 'none';
         }
       } else {
-        // Click on track - jump to position
-        const relativeY = mouseY - scrollbarPadding;
-        const scrollFraction = 1 - relativeY / scrollbarTrackHeight; // Inverted: top = 1, bottom = 0
+        // Click on the track - jump to position
+        const relativeY = mouseY - layout.trackTop;
+        const scrollFraction = 1 - relativeY / layout.trackHeight; // Inverted: top = 1, bottom = 0
         const targetViewportY = Math.round(scrollFraction * scrollbackLength);
         this.scrollToLine(Math.max(0, Math.min(scrollbackLength, targetViewportY)));
       }
@@ -1708,18 +1767,20 @@ export class Terminal implements ITerminalCore {
     // Calculate how much the mouse moved
     const deltaY = mouseY - this.scrollbarDragStart;
 
-    // Convert mouse delta to viewport delta
-    // Use rect height which is already in CSS pixels
-    const canvasHeight = rect.height;
-    const scrollbarPadding = 4;
-    const scrollbarTrackHeight = canvasHeight - scrollbarPadding * 2;
-    const visibleRows = this.rows;
-    const totalLines = scrollbackLength + visibleRows;
-    const thumbHeight = Math.max(20, (visibleRows / totalLines) * scrollbarTrackHeight);
+    // Convert mouse delta to viewport delta, using the same geometry the
+    // renderer draws with (lib/scrollbar.ts)
+    const layout = computeScrollbarLayout(
+      rect.width,
+      rect.height,
+      this.viewportY,
+      scrollbackLength,
+      this.rows
+    );
 
-    // Calculate scroll fraction from thumb movement
-    // Note: thumb moves in opposite direction to viewport (thumb down = scroll down = viewportY decreases)
-    const scrollFraction = -deltaY / (scrollbarTrackHeight - thumbHeight);
+    // Note: thumb moves in opposite direction to viewport (thumb down = scroll
+    // down = viewportY decreases)
+    const draggable = layout.trackHeight - layout.thumbHeight;
+    const scrollFraction = draggable > 0 ? -deltaY / draggable : 0;
     const viewportDelta = Math.round(scrollFraction * scrollbackLength);
 
     const newViewportY = this.scrollbarDragStartViewportY + viewportDelta;

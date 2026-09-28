@@ -10,6 +10,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { GHOSTTY_DEFAULT_THEME, parseHexColor } from './renderer';
 import type { Terminal } from './terminal';
 import { createIsolatedTerminal } from './test-helpers';
 
@@ -1345,7 +1346,7 @@ describe('Buffer Access API', () => {
 
     term.open(container!);
 
-    // Write to main screen (default background = black)
+    // Write to main screen (default background = the theme background)
     term.write('MAIN\r\n');
     term.wasmTerm?.update();
     term.wasmTerm?.markClean();
@@ -1372,14 +1373,15 @@ describe('Buffer Access API', () => {
     term.write('\x1b[?1049l');
     term.wasmTerm?.update();
 
-    // CRITICAL: Background colors must be restored to main screen values (black)
+    // CRITICAL: Background colors must be restored to main screen values
     const restoredViewport = term.wasmTerm?.getViewport();
     const firstCell = restoredViewport![0];
 
-    // Main screen cells should have default background (0, 0, 0 = black)
-    expect(firstCell.bg_r).toBe(0);
-    expect(firstCell.bg_g).toBe(0);
-    expect(firstCell.bg_b).toBe(0);
+    // Main screen cells should have the default background (Ghostty's #282c34)
+    const defaultBg = parseHexColor(GHOSTTY_DEFAULT_THEME.background)!;
+    expect(firstCell.bg_r).toBe(defaultBg.r);
+    expect(firstCell.bg_g).toBe(defaultBg.g);
+    expect(firstCell.bg_b).toBe(defaultBg.b);
 
     // Verify text is also restored
     expect(String.fromCodePoint(firstCell.codepoint)).toBe('M');
