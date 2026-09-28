@@ -1,36 +1,32 @@
-# ghostty-web
+# crafter-terminal
 
-[![NPM Version](https://img.shields.io/npm/v/ghostty-web)](https://npmjs.com/package/ghostty-web) [![NPM Downloads](https://img.shields.io/npm/dw/ghostty-web)](https://npmjs.com/package/ghostty-web) [![npm bundle size](https://img.shields.io/bundlephobia/minzip/ghostty-web)](https://npmjs.com/package/ghostty-web) [![license](https://img.shields.io/github/license/coder/ghostty-web)](./LICENSE)
+[![NPM Version](https://img.shields.io/npm/v/crafter-terminal)](https://npmjs.com/package/crafter-terminal) [![npm bundle size](https://img.shields.io/bundlephobia/minzip/crafter-terminal)](https://npmjs.com/package/crafter-terminal) [![license](https://img.shields.io/github/license/kugouming/crafter-terminal)](./LICENSE)
 
 [Ghostty](https://github.com/ghostty-org/ghostty) for the web with [xterm.js](https://github.com/xtermjs/xterm.js) API compatibility — giving you a proper VT100 implementation in the browser.
 
-- Migrate from xterm by changing your import: `@xterm/xterm` → `ghostty-web`
+This is a fork of [coder/ghostty-web](https://github.com/coder/ghostty-web). On top of upstream it focuses on **rendering parity with the native Ghostty app** — same default theme, same cell metrics, same box-drawing geometry, same cursor — so TUIs look the way they do in your terminal. See [Matching your native Ghostty terminal](#matching-your-native-ghostty-terminal).
+
+- Migrate from xterm by changing your import: `@xterm/xterm` → `crafter-terminal`
 - WASM-compiled parser from Ghostty—the same code that runs the native app
 - Zero runtime dependencies, ~400KB WASM bundle
 
-Originally created for [Mux](https://github.com/coder/mux) (a desktop app for isolated, parallel agentic development), but designed to be used anywhere.
-
 ## Try It
 
-- [Live Demo](https://ghostty.ondis.co) on an ephemeral VM (thank you to Greg from [disco.cloud](https://disco.cloud) for hosting).
+On your computer:
 
-- On your computer:
+```bash
+npx crafter-terminal-demo
+```
 
-  ```bash
-  npx @ghostty-web/demo@next
-  ```
+This starts a loopback-only HTTP server with a real shell on `http://127.0.0.1:8080`. The demo protects `/ws` with a per-run same-origin token and rejects cross-origin WebSocket handshakes. Works best on Linux and macOS.
 
-  This starts a loopback-only HTTP server with a real shell on `http://127.0.0.1:8080`. The demo protects `/ws` with a per-run same-origin token and rejects cross-origin WebSocket handshakes. Works best on Linux and macOS.
-
-  To intentionally bind somewhere else, set `HOST=<host>`. If you serve the demo through extra hostnames or a wildcard bind such as `HOST=0.0.0.0`, also set `GHOSTTY_ALLOWED_HOSTS=host1,host2`. Avoid remote exposure unless you understand the risk: the demo starts a real local shell.
-
-![ghostty](https://github.com/user-attachments/assets/aceee7eb-d57b-4d89-ac3d-ee1885d0187a)
+To intentionally bind somewhere else, set `HOST=<host>`. If you serve the demo through extra hostnames or a wildcard bind such as `HOST=0.0.0.0`, also set `GHOSTTY_ALLOWED_HOSTS=host1,host2`. Avoid remote exposure unless you understand the risk: the demo starts a real local shell.
 
 ## Comparison with xterm.js
 
 xterm.js is everywhere—VS Code, Hyper, countless web terminals. But it has fundamental issues:
 
-| Issue                                    | xterm.js                                                         | ghostty-web                |
+| Issue                                    | xterm.js                                                         | crafter-terminal           |
 | ---------------------------------------- | ---------------------------------------------------------------- | -------------------------- |
 | **Complex scripts** (Devanagari, Arabic) | Rendering issues                                                 | ✓ Proper grapheme handling |
 | **XTPUSHSGR/XTPOPSGR**                   | [Not supported](https://github.com/xtermjs/xterm.js/issues/2570) | ✓ Full support             |
@@ -40,15 +36,15 @@ xterm.js reimplements terminal emulation in JavaScript. Every escape sequence, e
 ## Installation
 
 ```bash
-npm install ghostty-web
+npm install crafter-terminal
 ```
 
 ## Usage
 
-ghostty-web aims to be API-compatible with the xterm.js API.
+crafter-terminal aims to be API-compatible with the xterm.js API.
 
 ```javascript
-import { init, Terminal } from 'ghostty-web';
+import { init, Terminal } from 'crafter-terminal';
 
 await init();
 
@@ -65,7 +61,7 @@ term.onData((data) => websocket.send(data));
 websocket.onmessage = (e) => term.write(e.data);
 ```
 
-For a comprehensive client <-> server example, refer to the [demo](./demo/index.html#L141).
+For a comprehensive client <-> server example, refer to the [demo](./demo/index.html).
 
 ## Matching your native Ghostty terminal
 
@@ -77,7 +73,7 @@ To make a web terminal look exactly like the terminal on your machine, feed it
 your Ghostty config:
 
 ```typescript
-import { Terminal, parseGhosttyConfig, toTerminalOptions } from 'ghostty-web';
+import { Terminal, parseGhosttyConfig, toTerminalOptions } from 'crafter-terminal';
 
 // In the browser, fetch the config from your server (see demo/bin/demo.js,
 // which serves the local config at /ghostty-config.json).
@@ -92,7 +88,7 @@ const term = new Terminal({ ...options, theme });
 In Node/Bun you can read it directly:
 
 ```typescript
-import { loadGhosttyConfig, toTerminalOptions } from 'ghostty-web';
+import { loadGhosttyConfig, toTerminalOptions } from 'crafter-terminal';
 
 const { config, themeText } = await loadGhosttyConfig();
 const { options, theme } = toTerminalOptions(config, { themeText });
@@ -157,21 +153,52 @@ when present (`GHOSTTY_CONFIG=<path>` to use a different one).
 
 ## Development
 
-ghostty-web builds from Ghostty's source with a [patch](./patches/ghostty-wasm-api.patch) to expose additional
+crafter-terminal builds from Ghostty's source with a [patch](./patches/ghostty-wasm-api.patch) to expose additional
 functionality.
 
-> Requires Zig and Bun.
+> Requires Zig (0.15.2) and Bun.
 
 ```bash
-bun run build
+git submodule update --init --recursive   # ghostty sources
+bun run build                             # wasm + library + dist
+bun run demo:dev                          # http://localhost:8000/demo/
+```
+
+Before committing:
+
+```bash
+bun run fmt && bun run lint && bun run typecheck && bun test && bun run build
+```
+
+The WASM binary is not committed; `bun run build` regenerates it (Zig required).
+`scripts/verify-package.mjs` refuses to pack a package whose entry points or
+WASM binary are missing, since npm silently skips missing `files` entries.
+
+## Publishing
+
+```bash
+bun run fmt && bun run lint && bun run typecheck && bun test
+npm pack --dry-run     # check the file list first
+npm publish            # runs prepublishOnly (build) and prepack (verify)
+```
+
+## Upstream
+
+This fork tracks [coder/ghostty-web](https://github.com/coder/ghostty-web), which
+was originally created for [Mux](https://github.com/coder/mux) (a desktop app
+for isolated, parallel agentic development) and is MIT licensed — see
+[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) for the notices of Ghostty
+(whose parser this compiles to WASM) and the demo's bundled font.
+
+To pull upstream changes:
+
+```bash
+git fetch upstream
+git merge upstream/main
 ```
 
 Mitchell Hashimoto (author of Ghostty) has [been working](https://mitchellh.com/writing/libghostty-is-coming) on `libghostty` which makes this all possible. The patches are very minimal thanks to the work the Ghostty team has done, and we expect them to get smaller.
 
-This library will eventually consume a native Ghostty WASM distribution once available, and will continue to provide an xterm.js compatible API.
-
-At Coder we're big fans of Ghostty, so kudos to that team for all the amazing work.
-
 ## License
 
-[MIT](./LICENSE)
+[MIT](./LICENSE) — see [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Ghostty-Web Feature Showcase Script (Improved)
+# crafter-terminal Feature Showcase Script (Improved)
 # Run with: bash showcase-improved.sh [fast|slow]
 # Default: medium speed (good for screen recording)
 
@@ -39,7 +39,7 @@ pause() {
 # =============================================================================
 clear  # Start with a real clear for clean presentation
 echo -e "${BOLD}${CYAN}╔═══════════════════════════════════════════════════════════════════╗${RESET}"
-echo -e "${BOLD}${CYAN}║                  Ghostty-Web Feature Showcase                     ║${RESET}"
+echo -e "${BOLD}${CYAN}║                  crafter-terminal Feature Showcase                     ║${RESET}"
 echo -e "${BOLD}${CYAN}║              Full VT100 Terminal Emulation in Browser             ║${RESET}"
 echo -e "${BOLD}${CYAN}╚═══════════════════════════════════════════════════════════════════╝${RESET}"
 echo

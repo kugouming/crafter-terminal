@@ -1,4 +1,4 @@
-# Agent Guide - Ghostty WASM Terminal
+# Agent Guide - crafter-terminal
 
 **For AI coding agents working on this repository.**
 
@@ -6,7 +6,7 @@
 
 ```bash
 bun install                          # Install dependencies
-bun test                            # Run test suite (95 tests)
+bun test                            # Run the test suite
 bun run dev                         # Start Vite dev server (http://localhost:8000)
 ```
 
@@ -19,8 +19,7 @@ bun run fmt && bun run lint && bun run typecheck && bun test && bun run build
 **Run interactive terminal demo:**
 
 ```bash
-cd demo/server && bun install && bun run start  # Terminal 1: PTY server
-bun run dev                                     # Terminal 2: Web server
+bun run demo:dev                    # Demo server + Vite, opens a real shell
 # Open: http://localhost:8000/demo/
 ```
 
@@ -43,7 +42,7 @@ This is a **fully functional terminal emulator** (MVP complete) that uses Ghostt
 
 - TypeScript + Bun runtime for tests
 - Vite for dev server and bundling
-- Ghostty WASM (404 KB, committed) for VT100 parsing
+- Ghostty WASM (~400 KB) for VT100 parsing, built from the ghostty submodule (not committed)
 - Canvas API for rendering
 
 ## Architecture
@@ -74,19 +73,19 @@ Ghostty WASM Bridge (lib/ghostty.ts)
 
 ### Key Files
 
-| File                        | Lines | Purpose                             |
-| --------------------------- | ----- | ----------------------------------- |
-| `lib/terminal.ts`           | 427   | Main Terminal class, xterm.js API   |
-| `lib/ghostty.ts`            | 552   | WASM bridge, memory management      |
-| `lib/renderer.ts`           | 610   | Canvas renderer with font metrics   |
-| `lib/metrics.ts`            | 330   | Ghostty-parity font metrics         |
-| `lib/sprites.ts`            | 320   | Box-drawing / block-element sprites |
-| `lib/ghostty-config.ts`     | 560   | Native Ghostty config → options     |
-| `lib/input-handler.ts`      | 438   | Keyboard → escape sequences         |
-| `lib/selection-manager.ts`  | 442   | Text selection + clipboard          |
-| `lib/types.ts`              | 454   | TypeScript definitions for WASM ABI |
-| `lib/addons/fit.ts`         | 240   | Responsive terminal sizing          |
-| `demo/server/pty-server.ts` | 284   | WebSocket PTY server (real shell)   |
+| File                       | Lines | Purpose                             |
+| -------------------------- | ----- | ----------------------------------- |
+| `lib/terminal.ts`          | 427   | Main Terminal class, xterm.js API   |
+| `lib/ghostty.ts`           | 552   | WASM bridge, memory management      |
+| `lib/renderer.ts`          | 610   | Canvas renderer with font metrics   |
+| `lib/metrics.ts`           | 330   | Ghostty-parity font metrics         |
+| `lib/sprites.ts`           | 320   | Box-drawing / block-element sprites |
+| `lib/ghostty-config.ts`    | 560   | Native Ghostty config → options     |
+| `lib/input-handler.ts`     | 438   | Keyboard → escape sequences         |
+| `lib/selection-manager.ts` | 442   | Text selection + clipboard          |
+| `lib/types.ts`             | 454   | TypeScript definitions for WASM ABI |
+| `lib/addons/fit.ts`        | 240   | Responsive terminal sizing          |
+| `demo/bin/demo.js`         | 1150  | Demo server: PTY, WebSocket, config |
 
 ### WASM Integration Pattern
 
@@ -126,7 +125,7 @@ Ghostty WASM Bridge (lib/ghostty.ts)
 bun run fmt                           # Check formatting (Prettier)
 bun run lint                          # Run linter (Biome)
 bun run typecheck                     # Type check (TypeScript)
-bun test                              # Run tests (95 tests)
+bun test                              # Run the test suite
 bun run build                         # Build library
 ```
 
@@ -358,7 +357,7 @@ python3 -m http.server
 
 ### 2. **WASM Binary is Committed**
 
-- `ghostty-vt.wasm` (404 KB) is in the repo
+- `ghostty-vt.wasm` (~400 KB) is **not** committed; build it with `bun run build:wasm` (needs Zig 0.15.2)
 - Don't need to rebuild unless updating Ghostty version
 - Rebuild instructions in README.md if needed
 
@@ -387,9 +386,8 @@ const view = new Uint8Array(this.getBuffer(), ptr, size);
 ### 5. **PTY Server Required for Interactive Demos**
 
 ```bash
-# Terminal needs PTY server running
-cd demo/server
-bun run start
+# The demo server hosts the PTY and (in dev mode) Vite
+bun run demo:dev
 
 # Then access from browser
 # http://localhost:8000/demo/

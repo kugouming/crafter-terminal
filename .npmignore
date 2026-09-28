@@ -1,14 +1,25 @@
 # Exclude development files from npm package
+#
+# Note: when this file exists it replaces .gitignore, so ghostty-vt.wasm (which
+# is gitignored) is still published - that is intended.
 demo/
 docs/
 scripts/
 lib/**/*.test.ts
+.github/
+patches/
+bench/
+flake.nix
+flake.lock
+happydom.ts
+bunfig.toml
 .git*
 *.log
 node_modules/
 bun.lock
-roadmap.md
 AGENTS.md
-run-demo.sh
 vite.config.js
 tsconfig.json
+biome.json
+.prettierrc
+.prettierignore

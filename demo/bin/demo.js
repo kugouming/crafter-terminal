@@ -49,7 +49,7 @@ function parsePort(value) {
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
-function findGhosttyWeb() {
+function findTerminalAssets() {
   // In dev mode, we use Vite - no need to find built assets
   if (DEV_MODE) {
     const repoRoot = path.join(__dirname, '..', '..');
@@ -73,11 +73,11 @@ function findGhosttyWeb() {
 
   // Use require.resolve to find the installed crafter-terminal package
   try {
-    const ghosttyWebMain = require.resolve('crafter-terminal');
+    const terminalMain = require.resolve('crafter-terminal');
     // Strip dist/... from path to get package root (regex already gives us the root)
-    const ghosttyWebRoot = ghosttyWebMain.replace(/[/\\]dist[/\\].*$/, '');
-    const distPath = path.join(ghosttyWebRoot, 'dist');
-    const wasmPath = path.join(ghosttyWebRoot, 'ghostty-vt.wasm');
+    const terminalRoot = terminalMain.replace(/[/\\]dist[/\\].*$/, '');
+    const distPath = path.join(terminalRoot, 'dist');
+    const wasmPath = path.join(terminalRoot, 'ghostty-vt.wasm');
 
     if (fs.existsSync(path.join(distPath, 'crafter-terminal.js')) && fs.existsSync(wasmPath)) {
       return { distPath, wasmPath, repoRoot: null };
@@ -93,7 +93,7 @@ function findGhosttyWeb() {
   process.exit(1);
 }
 
-const { distPath, wasmPath, repoRoot } = findGhosttyWeb();
+const { distPath, wasmPath, repoRoot } = findTerminalAssets();
 
 // ============================================================================
 // Native Ghostty config bridge
