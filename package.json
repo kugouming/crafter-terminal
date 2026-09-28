@@ -49,6 +49,7 @@
     "prebuild": "bun install",
     "build": "bun run clean && bun run build:wasm && bun run build:lib && bun run build:wasm-copy",
     "build:wasm": "./scripts/build-wasm.sh",
+    "build:font-metrics": "python3 scripts/build-font-metrics.py demo/fonts/MapleMono-Regular.woff2 --family \"Maple Mono\" -o demo/fonts/MapleMono-metrics.json",
     "build:lib": "vite build",
     "build:wasm-copy": "cp ghostty-vt.wasm dist/",
     "clean": "rm -rf dist",

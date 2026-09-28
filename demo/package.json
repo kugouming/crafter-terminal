@@ -17,6 +17,8 @@
   },
   "files": [
     "bin",
+    "fonts",
+    "ghostty.config",
     "README.md"
   ],
   "keywords": [

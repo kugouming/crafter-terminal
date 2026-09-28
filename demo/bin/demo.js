@@ -96,6 +96,195 @@ function findGhosttyWeb() {
 const { distPath, wasmPath, repoRoot } = findGhosttyWeb();
 
 // ============================================================================
+// Native Ghostty config bridge
+// ============================================================================
+
+// The browser can't read local files, so the server exposes the demo's
+// bundled config and the user's Ghostty config (and theme) as JSON. The client
+// parses them with the library's `parseGhosttyConfig` / `toTerminalOptions`,
+// which keeps all of the parsing logic in one place.
+//
+// Precedence: the bundled config (demo/ghostty.config) is the base, and the
+// local Ghostty config is layered on top when it exists.
+const BUNDLED_CONFIG_PATH = path.join(__dirname, '..', 'ghostty.config');
+const BUNDLED_FONT_DIR = path.join(__dirname, '..', 'fonts');
+
+const LOCAL_CONFIG_PATH =
+  process.env.GHOSTTY_CONFIG ??
+  path.join(process.env.XDG_CONFIG_HOME ?? path.join(homedir(), '.config'), 'ghostty', 'config');
+
+const MAX_CONFIG_INCLUDE_DEPTH = 5;
+
+function ghosttyThemeDirs() {
+  const dirs = [];
+  const xdgConfig = process.env.XDG_CONFIG_HOME ?? path.join(homedir(), '.config');
+  dirs.push(path.join(xdgConfig, 'ghostty', 'themes'));
+  dirs.push(path.join(homedir(), '.local', 'share', 'ghostty', 'themes'));
+  for (const dir of (process.env.XDG_DATA_DIRS ?? '/usr/local/share:/usr/share').split(':')) {
+    if (dir) dirs.push(path.join(dir, 'ghostty', 'themes'));
+  }
+  if (process.platform === 'darwin') {
+    dirs.push('/Applications/Ghostty.app/Contents/Resources/ghostty/themes');
+  }
+  return dirs;
+}
+
+/** Extract `theme = ...` names from config text (client does the real parsing). */
+function extractThemeNames(text) {
+  const names = [];
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed === '' || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq === -1) continue;
+    if (trimmed.slice(0, eq).trim() !== 'theme') continue;
+
+    let value = trimmed.slice(eq + 1).trim();
+    if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1);
+    for (const part of value.split(',')) {
+      const entry = part.trim();
+      if (entry === '') continue;
+      const colon = entry.indexOf(':');
+      const name = colon === -1 ? entry : entry.slice(colon + 1).trim();
+      if (name) names.push(name);
+    }
+  }
+  return names;
+}
+
+/** Extract `config-file = ...` includes from config text. */
+function extractConfigFiles(text) {
+  const files = [];
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed === '' || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq === -1) continue;
+    if (trimmed.slice(0, eq).trim() !== 'config-file') continue;
+    let value = trimmed.slice(eq + 1).trim();
+    if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1);
+    if (value) files.push(value);
+  }
+  return files;
+}
+
+/**
+ * Read a config file and its `config-file` includes.
+ * Returns `null` when the file does not exist.
+ */
+function readConfigFile(filePath, depth = 0, files = []) {
+  let text;
+  try {
+    text = fs.readFileSync(filePath, 'utf8');
+  } catch {
+    return null;
+  }
+  files.push(filePath);
+
+  const parts = [text];
+  if (depth < MAX_CONFIG_INCLUDE_DEPTH) {
+    for (const include of extractConfigFiles(text)) {
+      const includePath = path.isAbsolute(include)
+        ? include
+        : path.join(path.dirname(filePath), include);
+      const included = readConfigFile(includePath, depth + 1, files);
+      if (included) parts.push(included.text);
+    }
+  }
+
+  return { text: parts.join('\n'), files };
+}
+
+function readGhosttyConfigPayload() {
+  const files = [];
+
+  // Bundled defaults first, then the local config on top of it.
+  const bundled = readConfigFile(BUNDLED_CONFIG_PATH, 0, files);
+  const local = readConfigFile(LOCAL_CONFIG_PATH, 0, files);
+
+  if (!bundled && !local) {
+    return {
+      available: false,
+      bundledConfigPath: BUNDLED_CONFIG_PATH,
+      localConfigPath: LOCAL_CONFIG_PATH,
+      error: `neither ${BUNDLED_CONFIG_PATH} nor ${LOCAL_CONFIG_PATH} could be read`,
+    };
+  }
+
+  const configText = [bundled?.text, local?.text].filter(Boolean).join('\n');
+
+  // Resolve the first theme that exists on disk
+  let themeText = null;
+  let themeName = null;
+  for (const name of extractThemeNames(configText)) {
+    for (const dir of ghosttyThemeDirs()) {
+      const themePath = path.join(dir, name);
+      try {
+        themeText = fs.readFileSync(themePath, 'utf8');
+        themeName = name;
+        files.push(themePath);
+        break;
+      } catch {
+        // try the next directory
+      }
+    }
+    if (themeText !== null) break;
+  }
+
+  return {
+    available: true,
+    // Texts are kept separate so the client can give the local config
+    // precedence over the bundled defaults.
+    bundledConfigText: bundled?.text ?? null,
+    localConfigText: local?.text ?? null,
+    // Combined text, handy for debugging (the client uses the two above)
+    configText,
+    bundledConfigPath: BUNDLED_CONFIG_PATH,
+    localConfigPath: LOCAL_CONFIG_PATH,
+    localConfigFound: local !== null,
+    themeText,
+    themeName,
+    files,
+  };
+}
+
+/** Serve the fonts bundled with the demo (see demo/fonts). */
+function handleFontRequest(req, res, url) {
+  if (!url.pathname.startsWith('/fonts/')) return false;
+
+  // Only allow plain file names inside the font directory.
+  const name = path.basename(url.pathname);
+  const filePath = path.join(BUNDLED_FONT_DIR, name);
+  if (!filePath.startsWith(BUNDLED_FONT_DIR) || !fs.existsSync(filePath)) {
+    res.writeHead(404);
+    res.end('Not Found');
+    return true;
+  }
+
+  serveFile(filePath, res);
+  return true;
+}
+
+function handleGhosttyConfigRequest(req, res, url) {
+  if (url.pathname !== '/ghostty-config.json') return false;
+
+  let payload;
+  try {
+    payload = readGhosttyConfigPayload();
+  } catch (error) {
+    payload = { available: false, error: String(error) };
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+  });
+  res.end(JSON.stringify(payload));
+  return true;
+}
+
+// ============================================================================
 // HTML Template
 // ============================================================================
 
@@ -106,10 +295,75 @@ const HTML_TEMPLATE = `<!doctype html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ghostty-web</title>
     <style>
+      /*
+       * Maple Mono, bundled with the demo so the terminal renders the same
+       * everywhere (SIL OFL 1.1 - see fonts/LICENSE.txt).
+       */
+      @font-face {
+        font-family: 'Maple Mono';
+        src: url('./fonts/MapleMono-Regular.woff2') format('woff2');
+        font-weight: 400;
+        font-style: normal;
+        font-display: block;
+      }
+
+      @font-face {
+        font-family: 'Maple Mono';
+        src: url('./fonts/MapleMono-Bold.woff2') format('woff2');
+        font-weight: 700;
+        font-style: normal;
+        font-display: block;
+      }
+
+      @font-face {
+        font-family: 'Maple Mono';
+        src: url('./fonts/MapleMono-Italic.woff2') format('woff2');
+        font-weight: 400;
+        font-style: italic;
+        font-display: block;
+      }
+
+      @font-face {
+        font-family: 'Maple Mono';
+        src: url('./fonts/MapleMono-BoldItalic.woff2') format('woff2');
+        font-weight: 700;
+        font-style: italic;
+        font-display: block;
+      }
+
       * {
         margin: 0;
         padding: 0;
         box-sizing: border-box;
+      }
+
+      /*
+       * Page scrollbar: the native one is hidden and replaced by a thin
+       * indicator that only fades in while scrolling (see the script below).
+       */
+      html {
+        scrollbar-width: none; /* Firefox */
+      }
+
+      html::-webkit-scrollbar {
+        display: none; /* Chrome, Safari, Edge */
+      }
+
+      .page-scrollbar {
+        position: fixed;
+        top: 0;
+        right: 3px;
+        width: 5px;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.16);
+        opacity: 0;
+        transition: opacity 0.25s ease;
+        pointer-events: none;
+        z-index: 10;
+      }
+
+      .page-scrollbar.visible {
+        opacity: 1;
       }
 
       body {
@@ -223,26 +477,155 @@ const HTML_TEMPLATE = `<!doctype html>
       </div>
       <div class="terminal-content" id="terminal"></div>
     </div>
+    <div class="page-scrollbar" id="page-scrollbar"></div>
 
     <script type="module">
-      import { init, Terminal, FitAddon } from '/dist/ghostty-web.js';
+      import {
+        init,
+        Terminal,
+        FitAddon,
+        isFontAvailable,
+        parseGhosttyConfig,
+        mergeGhosttyConfigs,
+        toTerminalOptions,
+      } from '/dist/ghostty-web.js';
+
+      // Maple Mono, bundled with the demo (see fonts/, SIL OFL 1.1) so the
+      // glyphs and cell metrics don't depend on what is installed locally.
+      const BUNDLED_FONT_FAMILY = 'Maple Mono';
 
       await init();
+
+      /** Wait for the bundled webfont so metrics are measured with it. */
+      async function loadBundledFonts() {
+        if (!document.fonts) return;
+        try {
+          await Promise.all([
+            document.fonts.load('400 14px "' + BUNDLED_FONT_FAMILY + '"'),
+            document.fonts.load('700 14px "' + BUNDLED_FONT_FAMILY + '"'),
+            document.fonts.load('italic 400 14px "' + BUNDLED_FONT_FAMILY + '"'),
+            document.fonts.load('italic 700 14px "' + BUNDLED_FONT_FAMILY + '"'),
+          ]);
+        } catch (error) {
+          console.warn('ghostty-web: could not load the bundled font', error);
+        }
+      }
+      await loadBundledFonts();
+
+      /**
+       * Metrics read from the bundled font's own tables
+       * (fonts/MapleMono-metrics.json, generated by
+       * scripts/build-font-metrics.py). They make the grid identical on every
+       * browser and platform; the renderer ignores them if another font ends
+       * up being used.
+       */
+      async function loadBundledFontMetrics() {
+        try {
+          const response = await fetch('./fonts/MapleMono-metrics.json');
+          if (!response.ok) return undefined;
+          return await response.json();
+        } catch (error) {
+          console.warn('ghostty-web: could not load the bundled font metrics', error);
+          return undefined;
+        }
+      }
+
+      // The bundled config (demo/ghostty.config) is the base; a local Ghostty
+      // config is layered on top when the server found one. Falls back to the
+      // library defaults (which are Ghostty's defaults) when unavailable.
+      let terminalOptions = {};
+      let padding = null;
+      let configNotice = null;
+
+      try {
+        const response = await fetch('/ghostty-config.json');
+        if (response.ok) {
+          const payload = await response.json();
+          if (payload.available) {
+            const bundled = payload.bundledConfigText
+              ? parseGhosttyConfig(payload.bundledConfigText)
+              : null;
+            const local = payload.localConfigText
+              ? parseGhosttyConfig(payload.localConfigText)
+              : null;
+
+            let config;
+            if (bundled && local) {
+              config = mergeGhosttyConfigs([bundled, local]);
+              // A local config that sets font-family replaces the bundled one
+              // (accumulating would make the bundled font win over the user's).
+              if (local.fontFamily.length > 0) config.fontFamily = [...local.fontFamily];
+            } else {
+              config = bundled ?? local;
+            }
+
+            if (config) {
+              // The bundled webfont is always available, so keep it as a
+              // fallback behind whatever the user configured.
+              if (!config.fontFamily.includes(BUNDLED_FONT_FAMILY)) {
+                config.fontFamily.push(BUNDLED_FONT_FAMILY);
+              }
+
+              const { options, warnings } = toTerminalOptions(config, {
+                themeText: payload.themeText,
+              });
+              terminalOptions = options;
+              if (config.windowPaddingX && config.windowPaddingY) {
+                padding = {
+                  x: config.windowPaddingX.topLeft,
+                  y: config.windowPaddingY.topLeft,
+                };
+              }
+              configNotice = local
+                ? 'Using your Ghostty config' +
+                  (payload.themeName ? ' (' + payload.themeName + ')' : '')
+                : 'Using the bundled demo config';
+              for (const warning of warnings) console.warn('ghostty-web:', warning);
+
+              // The renderer falls back when the configured font is missing;
+              // tell the user why the glyphs differ.
+              const primary = local && local.fontFamily[0];
+              if (primary && isFontAvailable(primary, config.fontSize ?? 14) === false) {
+                configNotice =
+                  'Font not installed: ' + primary + ' (using ' + BUNDLED_FONT_FAMILY + ')';
+                console.warn(
+                  'ghostty-web: font "' +
+                    primary +
+                    '" is not installed for this browser; rendering with the bundled "' +
+                    BUNDLED_FONT_FAMILY +
+                    '" instead'
+                );
+              }
+            }
+          } else {
+            configNotice = 'No Ghostty config found; using defaults';
+          }
+        }
+      } catch (error) {
+        console.warn('ghostty-web: could not load Ghostty config', error);
+      }
+
+      const fontMetrics = await loadBundledFontMetrics();
+
       const term = new Terminal({
         cols: 80,
         rows: 24,
-        fontFamily: 'JetBrains Mono, Menlo, Monaco, monospace',
-        fontSize: 14,
-        theme: {
-          background: '#1e1e1e',
-          foreground: '#d4d4d4',
-        },
+        ...terminalOptions,
+        // Only applies when the bundled font is the one in use
+        fontMetrics,
       });
 
       const fitAddon = new FitAddon();
       term.loadAddon(fitAddon);
 
       const container = document.getElementById('terminal');
+      if (padding) {
+        container.style.padding = padding.y + 'px ' + padding.x + 'px';
+      }
+      if (terminalOptions.theme && terminalOptions.theme.background) {
+        document.querySelector('.terminal-window').style.background =
+          terminalOptions.theme.background;
+      }
       await term.open(container);
       fitAddon.fit();
       fitAddon.observeResize(); // Auto-fit when container resizes
@@ -254,6 +637,13 @@ const HTML_TEMPLATE = `<!doctype html>
       function setStatus(status, text) {
         statusDot.className = 'status-dot ' + status;
         statusText.textContent = text;
+      }
+
+      if (configNotice) {
+        const notice = document.createElement('div');
+        notice.textContent = configNotice;
+        notice.style.cssText = 'font-size:11px;color:#888;margin-bottom:6px;';
+        container.parentElement.insertBefore(notice, container);
       }
 
       // Connect to WebSocket PTY server (use same origin as HTTP server)
@@ -365,6 +755,46 @@ const HTML_TEMPLATE = `<!doctype html>
           fitAddon.fit();
         });
       }
+
+      /**
+       * Thin page scrollbar that only shows up while scrolling.
+       *
+       * The native scrollbar is hidden in CSS (see the stylesheet); this
+       * mirrors the scroll position with a faint bar that fades in on scroll
+       * and out again shortly after.
+       */
+      function initPageScrollbar() {
+        const bar = document.getElementById('page-scrollbar');
+        const HIDE_DELAY_MS = 900;
+        let hideTimer;
+
+        const update = (show) => {
+          const doc = document.documentElement;
+          const scrollable = doc.scrollHeight - window.innerHeight;
+
+          if (scrollable <= 1) {
+            bar.classList.remove('visible');
+            return;
+          }
+
+          const height = Math.max(32, (window.innerHeight / doc.scrollHeight) * window.innerHeight);
+          const top = (window.scrollY / scrollable) * (window.innerHeight - height);
+          bar.style.height = height + 'px';
+          bar.style.transform = 'translateY(' + top + 'px)';
+
+          if (!show) return;
+          bar.classList.add('visible');
+          clearTimeout(hideTimer);
+          hideTimer = setTimeout(() => bar.classList.remove('visible'), HIDE_DELAY_MS);
+        };
+
+        window.addEventListener('scroll', () => update(true), { passive: true });
+        window.addEventListener('resize', () => update(false));
+        // Position it without flashing it on load
+        update(false);
+      }
+
+      initPageScrollbar();
     </script>
   </body>
 </html>`;
@@ -380,6 +810,7 @@ const MIME_TYPES = {
   '.css': 'text/css',
   '.json': 'application/json',
   '.wasm': 'application/wasm',
+  '.woff2': 'font/woff2',
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
@@ -400,6 +831,10 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
 
+  if (handleGhosttyConfigRequest(req, res, url)) {
+    return;
+  }
+
   const pathname = url.pathname;
 
   // Serve index page
@@ -413,6 +848,11 @@ const httpServer = http.createServer((req, res) => {
   if (pathname.startsWith('/dist/')) {
     const filePath = path.join(distPath, pathname.slice(6));
     serveFile(filePath, res);
+    return;
+  }
+
+  // Serve bundled fonts
+  if (handleFontRequest(req, res, url)) {
     return;
   }
 
@@ -653,7 +1093,7 @@ wss.on('connection', (ws, req) => {
   const R = '\x1b[0m'; // Reset
   ws.send(`${C}╔══════════════════════════════════════════════════════════════╗${R}\r\n`);
   ws.send(
-    `${C}║${R}  ${G}Welcome to ghostty-web!${R}                                     ${C}║${R}\r\n`
+    `${C}║${R}  ${G}Welcome to crafter!${R}                                         ${C}║${R}\r\n`
   );
   ws.send(`${C}║${R}                                                              ${C}║${R}\r\n`);
   ws.send(`${C}║${R}  You have a real shell session with full PTY support.        ${C}║${R}\r\n`);
@@ -726,6 +1166,10 @@ if (DEV_MODE) {
             }
 
             if (handleTokenRequest(req, res, url)) {
+              return;
+            }
+
+            if (handleGhosttyConfigRequest(req, res, url)) {
               return;
             }
 
