@@ -83,8 +83,49 @@ export { Key, KeyAction, Mods } from './types';
 export type { KeyEvent, GhosttyCell, RGB, Cursor, TerminalHandle } from './types';
 
 // Low-level components (for custom integrations)
-export { CanvasRenderer } from './renderer';
-export type { RendererOptions, FontMetrics, IRenderable } from './renderer';
+export {
+  CanvasRenderer,
+  GHOSTTY_DEFAULT_THEME,
+  DEFAULT_FONT_FAMILY,
+  DEFAULT_FONT_SIZE,
+} from './renderer';
+export type { RendererOptions, IRenderable } from './renderer';
+
+// Font metrics (Ghostty-parity measurement)
+export {
+  measureFontMetrics,
+  applyMetricModifiers,
+  parseMetricModifier,
+  fallbackFontMetrics,
+  isFontAvailable,
+  isMonospaceFont,
+  firstAvailableFontFamily,
+  splitFontStack,
+} from './metrics';
+export type {
+  FaceMetrics,
+  FontMetrics,
+  MetricModifier,
+  MetricModifiers,
+  MeasureFontMetricsOptions,
+} from './metrics';
+
+// Sprites (box drawing / block elements, drawn like Ghostty)
+export { drawBoxDrawing, drawBlockElement, hasSprite } from './sprites';
+export type { SpriteMetrics } from './sprites';
+
+// Scrollbar geometry (shared by the renderer and hit-testing)
+export {
+  SCROLLBAR_MARGIN,
+  SCROLLBAR_WIDTH,
+  SCROLLBAR_PADDING,
+  SCROLLBAR_MIN_THUMB_HEIGHT,
+  SCROLLBAR_THUMB_OPACITY_SCROLLED,
+  SCROLLBAR_THUMB_OPACITY_IDLE,
+  computeScrollbarLayout,
+  isOnScrollbar,
+} from './scrollbar';
+export type { ScrollbarLayout } from './scrollbar';
 export { InputHandler } from './input-handler';
 export { EventEmitter } from './event-emitter';
 export { SelectionManager } from './selection-manager';
@@ -93,6 +134,26 @@ export type { SelectionCoordinates } from './selection-manager';
 // Addons
 export { FitAddon } from './addons/fit';
 export type { ITerminalDimensions } from './addons/fit';
+
+// Ghostty config bridge (match a native Ghostty terminal)
+export {
+  parseGhosttyConfig,
+  parseConfigLine,
+  mergeGhosttyConfigs,
+  resolveTheme,
+  toTerminalOptions,
+  normalizeColor,
+  loadGhosttyConfig,
+  defaultThemeDirs,
+} from './ghostty-config';
+export type {
+  GhosttyConfig,
+  GhosttyPadding,
+  LoadedGhosttyConfig,
+  LoadGhosttyConfigOptions,
+  ResolveThemeOptions,
+  ToTerminalOptionsResult,
+} from './ghostty-config';
 
 // Link providers
 export { OSC8LinkProvider } from './providers/osc8-link-provider';
