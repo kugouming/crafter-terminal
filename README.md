@@ -171,6 +171,15 @@ bun run fmt && bun run lint && bun run typecheck && bun test && bun run build
 ```
 
 The WASM binary is not committed; `bun run build` regenerates it (Zig required).
+Zig 0.15.2 cannot link on macOS 26 or newer, so on such a host take the binary
+CI built instead:
+
+```bash
+gh run download -R kugouming/crafter-terminal -n ghostty-vt.wasm
+mv ghostty-vt.wasm/ghostty-vt.wasm .
+bun run build:publish
+```
+
 `scripts/verify-package.mjs` refuses to pack a package whose entry points or
 WASM binary are missing, since npm silently skips missing `files` entries.
 

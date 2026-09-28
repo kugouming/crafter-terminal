@@ -50,6 +50,7 @@
     "demo": "node demo/bin/demo.js",
     "demo:dev": "node demo/bin/demo.js --dev",
     "build": "bun run clean && bun run build:wasm && bun run build:lib && bun run build:wasm-copy",
+    "build:publish": "bun run clean && bun run build:lib && bun run build:wasm-copy",
     "build:wasm": "./scripts/build-wasm.sh",
     "build:font-metrics": "python3 scripts/build-font-metrics.py demo/fonts/MapleMono-Regular.woff2 --family \"Maple Mono\" -o demo/fonts/MapleMono-metrics.json",
     "build:lib": "vite build",
@@ -62,7 +63,7 @@
     "fmt:fix": "prettier --write --cache .",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "prepublishOnly": "bun run build",
+    "prepublishOnly": "bun run build:publish",
     "prepack": "node scripts/verify-package.mjs"
   },
   "devDependencies": {
