@@ -1,5 +1,5 @@
 /**
- * Public API for @becrafter/ghostty-web
+ * Public API for @kugouming/ghostty-web
  *
  * Main entry point following xterm.js conventions
  */
@@ -18,7 +18,7 @@ let ghosttyInstance: Ghostty | null = null;
  *
  * @example
  * ```typescript
- * import { init, Terminal } from '@becrafter/ghostty-web';
+ * import { init, Terminal } from '@kugouming/ghostty-web';
  *
  * await init();
  * const term = new Terminal();
@@ -40,13 +40,13 @@ export async function init(): Promise<void> {
 export function getGhostty(): Ghostty {
   if (!ghosttyInstance) {
     throw new Error(
-      '@becrafter/ghostty-web not initialized. Call init() before creating Terminal instances.\n' +
+      '@kugouming/ghostty-web not initialized. Call init() before creating Terminal instances.\n' +
         'Example:\n' +
-        '  import { init, Terminal } from "@becrafter/ghostty-web";\n' +
+        '  import { init, Terminal } from "@kugouming/ghostty-web";\n' +
         '  await init();\n' +
         '  const term = new Terminal();\n\n' +
         'For tests, pass a Ghostty instance directly:\n' +
-        '  import { Ghostty, Terminal } from "@becrafter/ghostty-web";\n' +
+        '  import { Ghostty, Terminal } from "@kugouming/ghostty-web";\n' +
         '  const ghostty = await Ghostty.load();\n' +
         '  const term = new Terminal({ ghostty });'
     );

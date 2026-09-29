@@ -1,4 +1,4 @@
-# Agent Guide - ghostty-web (@becrafter/ghostty-web)
+# Agent Guide - ghostty-web (@kugouming/ghostty-web)
 
 **For AI coding agents working on this repository.**
 

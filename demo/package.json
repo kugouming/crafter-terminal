@@ -11,7 +11,7 @@
     "dev": "node bin/demo.js --dev"
   },
   "dependencies": {
-    "@becrafter/ghostty-web": "latest",
+    "@kugouming/ghostty-web": "latest",
     "@lydell/node-pty": "^1.0.1",
     "ws": "^8.18.0"
   },

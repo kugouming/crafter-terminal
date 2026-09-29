@@ -1,12 +1,12 @@
 # ghostty-web
 
-[![NPM Version](https://img.shields.io/npm/v/@becrafter/ghostty-web)](https://npmjs.com/package/@becrafter/ghostty-web) [![license](https://img.shields.io/github/license/kugouming/crafter-terminal)](./LICENSE)
+[![NPM Version](https://img.shields.io/npm/v/@kugouming/ghostty-web)](https://npmjs.com/package/@kugouming/ghostty-web) [![license](https://img.shields.io/github/license/kugouming/crafter-terminal)](./LICENSE)
 
 [Ghostty](https://github.com/ghostty-org/ghostty) for the web with [xterm.js](https://github.com/xtermjs/xterm.js) API compatibility — giving you a proper VT100 implementation in the browser.
 
-Published as **`@becrafter/ghostty-web`**, this is a fork of [coder/ghostty-web](https://github.com/coder/ghostty-web). On top of upstream it focuses on **rendering parity with the native Ghostty app** — same default theme, same cell metrics, same box-drawing geometry, same cursor — so TUIs look the way they do in your terminal. See [Matching your native Ghostty terminal](#matching-your-native-ghostty-terminal).
+Published as **`@kugouming/ghostty-web`**, this is a fork of [coder/ghostty-web](https://github.com/coder/ghostty-web). On top of upstream it focuses on **rendering parity with the native Ghostty app** — same default theme, same cell metrics, same box-drawing geometry, same cursor — so TUIs look the way they do in your terminal. See [Matching your native Ghostty terminal](#matching-your-native-ghostty-terminal).
 
-- Migrate from xterm by changing your import: `@xterm/xterm` → `@becrafter/ghostty-web`
+- Migrate from xterm by changing your import: `@xterm/xterm` → `@kugouming/ghostty-web`
 - WASM-compiled parser from Ghostty—the same code that runs the native app
 - Zero runtime dependencies, ~400KB WASM bundle
 
@@ -36,7 +36,7 @@ xterm.js reimplements terminal emulation in JavaScript. Every escape sequence, e
 ## Installation
 
 ```bash
-npm install @becrafter/ghostty-web
+npm install @kugouming/ghostty-web
 ```
 
 ## Usage
@@ -44,7 +44,7 @@ npm install @becrafter/ghostty-web
 ghostty-web aims to be API-compatible with the xterm.js API.
 
 ```javascript
-import { init, Terminal } from '@becrafter/ghostty-web';
+import { init, Terminal } from '@kugouming/ghostty-web';
 
 await init();
 
@@ -73,7 +73,7 @@ To make a web terminal look exactly like the terminal on your machine, feed it
 your Ghostty config:
 
 ```typescript
-import { Terminal, parseGhosttyConfig, toTerminalOptions } from '@becrafter/ghostty-web';
+import { Terminal, parseGhosttyConfig, toTerminalOptions } from '@kugouming/ghostty-web';
 
 // In the browser, fetch the config from your server (see demo/bin/demo.js,
 // which serves the local config at /ghostty-config.json).
@@ -88,7 +88,7 @@ const term = new Terminal({ ...options, theme });
 In Node/Bun you can read it directly:
 
 ```typescript
-import { loadGhosttyConfig, toTerminalOptions } from '@becrafter/ghostty-web';
+import { loadGhosttyConfig, toTerminalOptions } from '@kugouming/ghostty-web';
 
 const { config, themeText } = await loadGhosttyConfig();
 const { options, theme } = toTerminalOptions(config, { themeText });

@@ -1,5 +1,5 @@
 {
-  description = "ghostty-web - Web terminal using Ghostty's VT100 parser via WASM (fork of coder/ghostty-web, published as @becrafter/ghostty-web)";
+  description = "ghostty-web - Web terminal using Ghostty's VT100 parser via WASM (fork of coder/ghostty-web, published as @kugouming/ghostty-web)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

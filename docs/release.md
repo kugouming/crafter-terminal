@@ -9,7 +9,7 @@ workflow (they were removed in `0.5.0`).
 2. Decide the version and update it in:
    - `package.json` (`version`)
    - `flake.nix` (`version`)
-   - `demo/package.json` (`version`, and the `@becrafter/ghostty-web` dependency if
+   - `demo/package.json` (`version`, and the `@kugouming/ghostty-web` dependency if
      you also publish the demo)
 3. Move the `CHANGELOG.md` entries under the new version heading.
 4. Commit (`chore(release): vX.Y.Z`).
@@ -35,7 +35,7 @@ npm pack --dry-run
 #   package/README.md, package/LICENSE, package/THIRD_PARTY_NOTICES.md
 
 npm publish          # runs prepublishOnly (build:publish) and prepack (verify)
-npm view @becrafter/ghostty-web version
+npm view @kugouming/ghostty-web version
 ```
 
 `npm publish` cannot be undone (a version number is taken permanently), so do
@@ -70,7 +70,7 @@ when needed with `git fetch upstream --tags`.
 ## Demo package
 
 The `crafter-terminal` demo package is **not** published by default. If you
-decide to publish it, pin its `@becrafter/ghostty-web` dependency to the exact
+decide to publish it, pin its `@kugouming/ghostty-web` dependency to the exact
 released version
 first, then `cd demo && bun install` to regenerate the lockfile (it was removed
 because it pinned the old upstream package).

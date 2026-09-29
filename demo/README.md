@@ -1,7 +1,7 @@
 # crafter-terminal
 
 Cross-platform demo server (a real shell over a PTY) for the
-[`@becrafter/ghostty-web`](https://github.com/kugouming/crafter-terminal) library.
+[`@kugouming/ghostty-web`](https://github.com/kugouming/crafter-terminal) library.
 
 ## Quick Start
 
@@ -50,7 +50,7 @@ terminal. Point the demo at a different config with
 `GHOSTTY_CONFIG=/path/to/config`.
 
 The server exposes all of this to the page at `/ghostty-config.json`; the page
-parses it with `parseGhosttyConfig` / `toTerminalOptions` from `@becrafter/ghostty-web`.
+parses it with `parseGhosttyConfig` / `toTerminalOptions` from `@kugouming/ghostty-web`.
 
 ## Usage
 

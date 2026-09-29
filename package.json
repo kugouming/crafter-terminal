@@ -1,7 +1,7 @@
 {
-  "name": "@becrafter/ghostty-web",
+  "name": "@kugouming/ghostty-web",
   "version": "0.5.0",
-  "description": "Web-based terminal emulator using Ghostty's VT100 parser via WebAssembly (fork of coder/ghostty-web, published as @becrafter/ghostty-web)",
+  "description": "Web-based terminal emulator using Ghostty's VT100 parser via WebAssembly (fork of coder/ghostty-web, published as @kugouming/ghostty-web)",
   "type": "module",
   "main": "./dist/ghostty-web.umd.cjs",
   "module": "./dist/ghostty-web.js",

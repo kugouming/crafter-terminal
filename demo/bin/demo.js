@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * crafter-terminal - Cross-platform demo server (for @becrafter/ghostty-web)
+ * crafter-terminal - Cross-platform demo server (for @kugouming/ghostty-web)
  *
  * Starts a local HTTP server with WebSocket PTY support.
  * Run with: npx crafter-terminal
@@ -71,9 +71,9 @@ function findTerminalAssets() {
     return { distPath: localDist, wasmPath: localWasm, repoRoot: path.join(__dirname, '..', '..') };
   }
 
-  // Use require.resolve to find the installed @becrafter/ghostty-web package
+  // Use require.resolve to find the installed @kugouming/ghostty-web package
   try {
-    const terminalMain = require.resolve('@becrafter/ghostty-web');
+    const terminalMain = require.resolve('@kugouming/ghostty-web');
     // Strip dist/... from path to get package root (regex already gives us the root)
     const terminalRoot = terminalMain.replace(/[/\\]dist[/\\].*$/, '');
     const distPath = path.join(terminalRoot, 'dist');
@@ -86,7 +86,7 @@ function findTerminalAssets() {
     // require.resolve failed, package not found
   }
 
-  console.error('Error: Could not find the @becrafter/ghostty-web package.');
+  console.error('Error: Could not find the @kugouming/ghostty-web package.');
   console.error('');
   console.error('If developing locally, run: bun run build');
   console.error('If using npx, the package should install automatically.');

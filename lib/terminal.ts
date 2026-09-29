@@ -5,7 +5,7 @@
  *
  * Usage:
  * ```typescript
- * import { init, Terminal } from '@becrafter/ghostty-web';
+ * import { init, Terminal } from '@kugouming/ghostty-web';
  *
  * await init();
  * const term = new Terminal();
