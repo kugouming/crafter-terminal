@@ -71,7 +71,6 @@ when needed with `git fetch upstream --tags`.
 ## Demo package
 
 The `crafter-terminal` demo package is **not** published by default. If you
-decide to publish it, pin its `@kugouming/ghostty-web` dependency to the exact
-released version
-first, then `cd demo && bun install` to regenerate the lockfile (it was removed
-because it pinned the old upstream package).
+decide to publish it, pin its `@kugouming/ghostty-web` dependency to a released
+version (currently `^0.5.0`) and run `cd demo && bun install` to refresh
+`demo/bun.lock`.
