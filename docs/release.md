@@ -20,8 +20,9 @@ workflow (they were removed in `0.5.0`).
 bun run fmt && bun run lint && bun run typecheck && bun test
 
 # The WASM binary is not committed. Fetch the one CI built and tested:
+# Run this from the repo root. A single-file artifact is written to the
+# current directory, so this creates ./ghostty-vt.wasm directly.
 gh run download -R kugouming/crafter-terminal -n ghostty-vt.wasm
-#   -> ghostty-vt.wasm/ghostty-vt.wasm ; move it to the repo root
 
 # Build the library and stage the WASM into dist (no local Zig needed)
 bun run build:publish

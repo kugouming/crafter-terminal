@@ -175,8 +175,7 @@ Zig 0.15.2 cannot link on macOS 26 or newer, so on such a host take the binary
 CI built instead:
 
 ```bash
-gh run download -R kugouming/crafter-terminal -n ghostty-vt.wasm
-mv ghostty-vt.wasm/ghostty-vt.wasm .
+gh run download -R kugouming/crafter-terminal -n ghostty-vt.wasm   # writes ./ghostty-vt.wasm
 bun run build:publish
 ```
 
