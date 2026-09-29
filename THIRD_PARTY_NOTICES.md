@@ -1,6 +1,6 @@
 # Third-party notices
 
-crafter-terminal redistributes the following third-party software. The full
+The published package (`@becrafter/ghostty-web`) redistributes the following third-party software. The full
 license text of each is included below or alongside the files in this
 repository.
 
@@ -40,7 +40,7 @@ SOFTWARE.
 
 ## ghostty-web (original project)
 
-crafter-terminal is a fork of coder/ghostty-web, which is MIT licensed
+@becrafter/ghostty-web is a fork of coder/ghostty-web, which is MIT licensed
 (Copyright (c) 2025 Coder). See `LICENSE`.
 
 - Project: https://github.com/coder/ghostty-web

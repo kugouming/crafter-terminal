@@ -1,16 +1,16 @@
 {
-  "name": "crafter-terminal",
-  "version": "0.1.0",
-  "description": "Web-based terminal emulator using Ghostty's VT100 parser via WebAssembly (fork of coder/ghostty-web)",
+  "name": "@becrafter/ghostty-web",
+  "version": "0.5.0",
+  "description": "Web-based terminal emulator using Ghostty's VT100 parser via WebAssembly (fork of coder/ghostty-web, published as @becrafter/ghostty-web)",
   "type": "module",
-  "main": "./dist/crafter-terminal.umd.cjs",
-  "module": "./dist/crafter-terminal.js",
+  "main": "./dist/ghostty-web.umd.cjs",
+  "module": "./dist/ghostty-web.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/crafter-terminal.js",
-      "require": "./dist/crafter-terminal.umd.cjs"
+      "import": "./dist/ghostty-web.js",
+      "require": "./dist/ghostty-web.umd.cjs"
     },
     "./ghostty-vt.wasm": "./ghostty-vt.wasm"
   },
@@ -25,7 +25,6 @@
     "terminal",
     "terminal-emulator",
     "ghostty",
-    "crafter",
     "web",
     "xterm",
     "vt100",
@@ -45,6 +44,9 @@
   "contributors": [
     "Coder (https://github.com/coder) - original ghostty-web project"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "vite --port 8000",
     "demo": "node demo/bin/demo.js",

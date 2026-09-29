@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * crafter-terminal-demo - Cross-platform demo server
+ * crafter-terminal - Cross-platform demo server (for @becrafter/ghostty-web)
  *
  * Starts a local HTTP server with WebSocket PTY support.
- * Run with: npx crafter-terminal-demo
+ * Run with: npx crafter-terminal
  */
 
 import fs from 'fs';
@@ -43,7 +43,7 @@ function parsePort(value) {
 }
 
 // ============================================================================
-// Locate crafter-terminal assets
+// Locate the ghostty-web assets the demo serves
 // ============================================================================
 
 import { createRequire } from 'module';
@@ -64,29 +64,29 @@ function findTerminalAssets() {
 
   // First, check for local development (repo root dist/)
   const localDist = path.join(__dirname, '..', '..', 'dist');
-  const localJs = path.join(localDist, 'crafter-terminal.js');
+  const localJs = path.join(localDist, 'ghostty-web.js');
   const localWasm = path.join(__dirname, '..', '..', 'ghostty-vt.wasm');
 
   if (fs.existsSync(localJs) && fs.existsSync(localWasm)) {
     return { distPath: localDist, wasmPath: localWasm, repoRoot: path.join(__dirname, '..', '..') };
   }
 
-  // Use require.resolve to find the installed crafter-terminal package
+  // Use require.resolve to find the installed @becrafter/ghostty-web package
   try {
-    const terminalMain = require.resolve('crafter-terminal');
+    const terminalMain = require.resolve('@becrafter/ghostty-web');
     // Strip dist/... from path to get package root (regex already gives us the root)
     const terminalRoot = terminalMain.replace(/[/\\]dist[/\\].*$/, '');
     const distPath = path.join(terminalRoot, 'dist');
     const wasmPath = path.join(terminalRoot, 'ghostty-vt.wasm');
 
-    if (fs.existsSync(path.join(distPath, 'crafter-terminal.js')) && fs.existsSync(wasmPath)) {
+    if (fs.existsSync(path.join(distPath, 'ghostty-web.js')) && fs.existsSync(wasmPath)) {
       return { distPath, wasmPath, repoRoot: null };
     }
   } catch (e) {
     // require.resolve failed, package not found
   }
 
-  console.error('Error: Could not find crafter-terminal package.');
+  console.error('Error: Could not find the @becrafter/ghostty-web package.');
   console.error('');
   console.error('If developing locally, run: bun run build');
   console.error('If using npx, the package should install automatically.');
@@ -488,7 +488,7 @@ const HTML_TEMPLATE = `<!doctype html>
         parseGhosttyConfig,
         mergeGhosttyConfigs,
         toTerminalOptions,
-      } from '/dist/crafter-terminal.js';
+      } from '/dist/ghostty-web.js';
 
       // Maple Mono, bundled with the demo (see fonts/, SIL OFL 1.1) so the
       // glyphs and cell metrics don't depend on what is installed locally.

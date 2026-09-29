@@ -1,9 +1,9 @@
 MIT License
 
 Copyright (c) 2025 Coder
-Copyright (c) 2026 kugouming and crafter-terminal contributors
+Copyright (c) 2026 kugouming and ghostty-web contributors
 
-crafter-terminal is a fork of coder/ghostty-web
+@becrafter/ghostty-web is a fork of coder/ghostty-web
 (https://github.com/coder/ghostty-web). Portions of this software are derived
 from that project and remain subject to the copyright notice above.
 

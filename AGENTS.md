@@ -1,4 +1,4 @@
-# Agent Guide - crafter-terminal
+# Agent Guide - ghostty-web (@becrafter/ghostty-web)
 
 **For AI coding agents working on this repository.**
 

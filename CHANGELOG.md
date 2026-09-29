@@ -1,8 +1,9 @@
 # Changelog
 
-## 0.1.0
+## 0.5.0
 
-First release of `crafter-terminal`, a fork of
+First release of `@becrafter/ghostty-web` (the `ghostty-web` library
+published under the `@becrafter` scope), a fork of
 [coder/ghostty-web](https://github.com/coder/ghostty-web) focused on rendering
 parity with the native Ghostty app.
 

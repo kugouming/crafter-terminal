@@ -16,9 +16,9 @@ export default defineConfig({
   build: {
     lib: {
       entry: 'lib/index.ts',
-      name: 'CrafterTerminal',
+      name: 'GhosttyWeb',
       fileName: (format) => {
-        return format === 'es' ? 'crafter-terminal.js' : 'crafter-terminal.umd.cjs';
+        return format === 'es' ? 'ghostty-web.js' : 'ghostty-web.umd.cjs';
       },
       formats: ['es', 'umd'],
     },

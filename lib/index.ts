@@ -1,5 +1,5 @@
 /**
- * Public API for crafter-terminal
+ * Public API for @becrafter/ghostty-web
  *
  * Main entry point following xterm.js conventions
  */
@@ -10,7 +10,7 @@ import { Ghostty } from './ghostty';
 let ghosttyInstance: Ghostty | null = null;
 
 /**
- * Initialize the crafter-terminal library by loading the WASM module.
+ * Initialize the ghostty-web library by loading the WASM module.
  * Must be called before creating any Terminal instances.
  *
  * This creates a shared WASM instance that all Terminal instances will use.
@@ -18,7 +18,7 @@ let ghosttyInstance: Ghostty | null = null;
  *
  * @example
  * ```typescript
- * import { init, Terminal } from 'crafter-terminal';
+ * import { init, Terminal } from '@becrafter/ghostty-web';
  *
  * await init();
  * const term = new Terminal();
@@ -40,13 +40,13 @@ export async function init(): Promise<void> {
 export function getGhostty(): Ghostty {
   if (!ghosttyInstance) {
     throw new Error(
-      'crafter-terminal not initialized. Call init() before creating Terminal instances.\n' +
+      '@becrafter/ghostty-web not initialized. Call init() before creating Terminal instances.\n' +
         'Example:\n' +
-        '  import { init, Terminal } from "crafter-terminal";\n' +
+        '  import { init, Terminal } from "@becrafter/ghostty-web";\n' +
         '  await init();\n' +
         '  const term = new Terminal();\n\n' +
         'For tests, pass a Ghostty instance directly:\n' +
-        '  import { Ghostty, Terminal } from "crafter-terminal";\n' +
+        '  import { Ghostty, Terminal } from "@becrafter/ghostty-web";\n' +
         '  const ghostty = await Ghostty.load();\n' +
         '  const term = new Terminal({ ghostty });'
     );

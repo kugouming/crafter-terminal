@@ -1,5 +1,5 @@
 /**
- * Test Helpers for crafter-terminal
+ * Test Helpers for ghostty-web
  *
  * Provides utilities for test isolation and setup.
  */

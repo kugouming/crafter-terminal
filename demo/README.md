@@ -1,11 +1,12 @@
-# crafter-terminal-demo
+# crafter-terminal
 
-Cross-platform demo server for [crafter-terminal](https://github.com/kugouming/crafter-terminal) terminal emulator.
+Cross-platform demo server (a real shell over a PTY) for the
+[`@becrafter/ghostty-web`](https://github.com/kugouming/crafter-terminal) library.
 
 ## Quick Start
 
 ```bash
-npx crafter-terminal-demo
+npx crafter-terminal
 ```
 
 This starts a local web server with a fully functional terminal connected to your shell.
@@ -49,19 +50,19 @@ terminal. Point the demo at a different config with
 `GHOSTTY_CONFIG=/path/to/config`.
 
 The server exposes all of this to the page at `/ghostty-config.json`; the page
-parses it with `parseGhosttyConfig` / `toTerminalOptions` from `crafter-terminal`.
+parses it with `parseGhosttyConfig` / `toTerminalOptions` from `@becrafter/ghostty-web`.
 
 ## Usage
 
 ```bash
 # Default (port 8080)
-npx crafter-terminal-demo
+npx crafter-terminal
 
 # Custom port
-PORT=3000 npx crafter-terminal-demo
+PORT=3000 npx crafter-terminal
 
 # Explicit bind host for intentional non-default access
-HOST=192.0.2.10 GHOSTTY_ALLOWED_HOSTS=demo.example npx crafter-terminal-demo
+HOST=192.0.2.10 GHOSTTY_ALLOWED_HOSTS=demo.example npx crafter-terminal
 ```
 
 Then open http://127.0.0.1:8080 in your browser.
